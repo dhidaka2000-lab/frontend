@@ -6,7 +6,7 @@
 
 import { getIdToken } from "./auth.js";
 
-const WORKER_URL = import.meta.env.VITE_WORKER_URL || "https://ekuikidev.dhidaka2000-lab.workers.dev";
+const WORKER_URL = import.meta.env.VITE_WORKER_URL || "https://ekuiki-worker.dhidaka2000-lab.workers.dev";
 
 // ----------------------------------------------------------------
 // 共通ヘルパー
