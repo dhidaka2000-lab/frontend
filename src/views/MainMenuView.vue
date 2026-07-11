@@ -115,9 +115,16 @@ async function logout() {
   router.push({ name: "login" });
 }
 
-// 未実装ページへの遷移（今後拡張）
+const PAGE_ROUTES = {
+  cardlist:  "cardList",
+  childlist: "childList",
+  settings:  "settings",
+  admin:     "admins",
+};
+
 function go(page) {
-  alert(`「${page}」ページは現在開発中です`);
+  const name = PAGE_ROUTES[page];
+  if (name) router.push({ name });
 }
 </script>
 
