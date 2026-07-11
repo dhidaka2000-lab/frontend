@@ -6,7 +6,7 @@
 
 import { getIdToken } from "./auth.js";
 
-const WORKER_URL = import.meta.env.VITE_WORKER_URL || "https://ekuiki-worker.dhidaka2000-lab.workers.dev";
+const WORKER_URL = import.meta.env.VITE_WORKER_URL || "https://ekuikidev.dhidaka2000.workers.dev";
 
 // ----------------------------------------------------------------
 // 共通ヘルパー
@@ -111,6 +111,127 @@ export async function upsertVisitRecord(record) {
  */
 export async function deleteVisitRecord(VisitID) {
   return callWorker({ funcName: "deleteVisitRecord", VisitID });
+}
+
+// ----------------------------------------------------------------
+// 区域リスト（CardList / EditCardList / Settings_EditDetail / ImportKibanCSV）
+// ----------------------------------------------------------------
+
+/** 区域カード一覧を取得する */
+export async function getCardList(filters = {}) {
+  return callWorker({ funcName: "getCardList", ...filters });
+}
+
+/** 区域カードを作成/更新する */
+export async function upsertCardList(record) {
+  return callWorker({ funcName: "upsertCardList", ...record });
+}
+
+/** 区域カードを削除する */
+export async function deleteCardList(cardNo) {
+  return callWorker({ funcName: "deleteCardList", cardNo });
+}
+
+/** グループ名一覧を取得する */
+export async function getGroupMaster() {
+  return callWorker({ funcName: "getGroupMaster" });
+}
+
+/** ユーザーマスタ全件を取得する（担当者選択肢・ユーザー管理画面の両方で使用） */
+export async function getUserMaster() {
+  return callWorker({ funcName: "getUserMaster" });
+}
+
+/** ユーザーマスタ全件を取得する（getUserMaster のエイリアス） */
+export async function getUserMasterList(filters = {}) {
+  return callWorker({ funcName: "getUserMasterList", ...filters });
+}
+
+/** 既存の区域No一覧を取得する */
+export async function getCardNoOptions() {
+  return callWorker({ funcName: "getCardNoOptions" });
+}
+
+// ----------------------------------------------------------------
+// 子カード一覧（CardMap / ChildList / EditChildList）
+// ----------------------------------------------------------------
+
+/** 指定した区域Noの親カード情報＋子カード一覧を取得する */
+export async function getChildListByCard(CardNo) {
+  return callWorker({ funcName: "getChildListByCard", CardNo });
+}
+
+/** グループに紐づく子カード一覧を取得する（グループページ用） */
+export async function getGroupChildList(group) {
+  return callWorker({ funcName: "getGroupChildList", Group: group });
+}
+
+/** グループに属する奉仕者（割当候補）一覧を取得する */
+export async function getMinisterOptions(group) {
+  return callWorker({ funcName: "getMinisterOptions", Group: group });
+}
+
+/** 子カードの担当奉仕者を変更する */
+export async function assignChildMinister(childId, ministerId) {
+  return callWorker({ funcName: "assignChildMinister", ChildID: childId, MinisterID: ministerId });
+}
+
+/** 子カード全件を取得する（管理画面用） */
+export async function getChildListAll(filters = {}) {
+  return callWorker({ funcName: "getChildListAll", ...filters });
+}
+
+/** 子カードを作成/更新する */
+export async function upsertChildList(record) {
+  return callWorker({ funcName: "upsertChildList", ...record });
+}
+
+/** 子カードを削除する */
+export async function deleteChildList(id) {
+  return callWorker({ funcName: "deleteChildList", id });
+}
+
+// ----------------------------------------------------------------
+// ユーザーリストの編集（管理者設定）
+// ----------------------------------------------------------------
+
+/** ユーザーを作成/更新する */
+export async function upsertUser(record) {
+  return callWorker({ funcName: "upsertUser", ...record });
+}
+
+/** ユーザーを削除する */
+export async function deleteUser(id) {
+  return callWorker({ funcName: "deleteUser", ID: id });
+}
+
+// ----------------------------------------------------------------
+// 住居リストの編集 / CSVインポート
+// ----------------------------------------------------------------
+
+/** 住戸を作成/更新する */
+export async function upsertDetail(row) {
+  return callWorker({ funcName: "upsertDetail", ...row });
+}
+
+/** 住戸を削除する */
+export async function deleteDetail(DetailID) {
+  return callWorker({ funcName: "deleteDetail", DetailID });
+}
+
+/** 住戸の表示順を隣の行と入れ替える */
+export async function moveDetailRow(DetailID, direction) {
+  return callWorker({ funcName: "moveDetailRow", DetailID, direction });
+}
+
+/** 住戸IDを現在の表示順で振り直す */
+export async function renumberDetailList(CardNo, ChildNo) {
+  return callWorker({ funcName: "renumberDetailList", CardNo, ChildNo });
+}
+
+/** 住居表示住所CSVを取り込む */
+export async function importKibanCsv({ cardNo, childNo, rows }) {
+  return callWorker({ funcName: "importKibanCsv", cardNo, childNo, rows });
 }
 
 /**
