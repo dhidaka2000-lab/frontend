@@ -32,13 +32,25 @@
     </div>
 
     <!-- フィルタ + 更新ボタン -->
-    <div class="d-flex justify-content-end mb-2">
-      <select class="form-select w-auto me-2" v-model="filterMode">
-        <option value="all">全件表示</option>
-        <option value="lent">貸出中のみ</option>
-        <option value="focus">重点のみ</option>
-        <option value="nonfocus">重点以外</option>
-      </select>
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
+      <div class="d-flex flex-wrap">
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" id="filter-all" value="all" v-model="filterMode">
+          <label class="form-check-label" for="filter-all">全件表示</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" id="filter-lent" value="lent" v-model="filterMode">
+          <label class="form-check-label" for="filter-lent">貸出中のみ</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" id="filter-focus" value="focus" v-model="filterMode">
+          <label class="form-check-label" for="filter-focus">重点のみ</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" id="filter-nonfocus" value="nonfocus" v-model="filterMode">
+          <label class="form-check-label" for="filter-nonfocus">重点以外</label>
+        </div>
+      </div>
       <button class="btn btn-primary" @click="refresh" :disabled="isUpdating">
         <i class="fas fa-sync-alt"></i> 最新情報に更新
       </button>
@@ -61,7 +73,7 @@
                 <span class="cardno-badge">{{ child.CARDNO }}-{{ child.CHILDNO }}</span>
                 {{ child.CHILDBLOCK }}
               </h5>
-              <span :class="statusBadgeClass(child.CHILDSTATUS)">
+              <span class="badge rounded-pill" :style="statusPillStyle(child.CHILDSTATUS)">
                 {{ child.CHILDSTATUS }}
               </span>
             </div>
@@ -147,13 +159,18 @@ function openChildMap(child) {
   });
 }
 
-function statusBadgeClass(status) {
-  const map = {
-    "貸出中": "badge bg-primary",
-    "重点":   "badge bg-danger",
-    "返却済": "badge bg-secondary",
-  };
-  return map[status] || "badge bg-light text-dark";
+// オリジナル版のBootstrap4配色をhex直指定で踏襲（区域リスト画面と同一）
+const STATUS_COLORS = {
+  "貸出中": { bg: "#ffc107", color: "#212529" },
+  "返却済": { bg: "#17a2b8", color: "#fff" },
+  "整備中": { bg: "#6c757d", color: "#fff" },
+  "完了":   { bg: "#28a745", color: "#fff" },
+  "重点":   { bg: "#dc3545", color: "#fff" },
+};
+
+function statusPillStyle(status) {
+  const c = STATUS_COLORS[status] || STATUS_COLORS["整備中"];
+  return { backgroundColor: c.bg, color: c.color };
 }
 
 onMounted(fetchData);

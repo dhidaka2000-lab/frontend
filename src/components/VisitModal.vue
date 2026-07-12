@@ -14,7 +14,7 @@
         <!-- ヘッダー -->
         <div class="modal-header">
           <h5 class="modal-title">
-            住戸 #{{ house?.HousingNo }} 訪問記録
+            住戸 #{{ house?.HousingNo }} {{ mode === 'history' ? '訪問履歴' : '訪問記録' }}
             <small class="text-muted ms-2">{{ house?.BuildingName }} {{ house?.RoomNo }}</small>
           </h5>
           <button type="button" class="btn-close" @click="$emit('update:modelValue', false)"></button>
@@ -23,74 +23,66 @@
         <!-- ボディ -->
         <div class="modal-body">
 
-          <!-- 既存の訪問履歴タイムライン -->
-          <h6 class="mb-2">訪問履歴</h6>
-          <div v-if="house?.VRecord && house.VRecord.length > 0" class="visit-record-timeline mb-3">
-            <div
-              v-for="r in sortedVRecord"
-              :key="r.VisitID"
-              class="visit-record-item"
-            >
-              <div class="d-flex justify-content-between align-items-start">
-                <div>
-                  <span class="badge bg-secondary me-1">{{ r.VisitDate }}</span>
-                  <span class="badge bg-light text-dark me-1">{{ r.Time }}</span>
-                  <strong>{{ r.Result }}</strong>
-                  <span v-if="r.Minister" class="ms-1 small text-muted">（{{ r.Minister }}）</span>
+          <!-- 訪問履歴タイムライン -->
+          <template v-if="mode === 'history'">
+            <div v-if="house?.VRecord && house.VRecord.length > 0" class="visit-record-timeline mb-3">
+              <div
+                v-for="r in sortedVRecord"
+                :key="r.VisitID"
+                class="visit-record-item"
+              >
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <span class="badge bg-secondary me-1">{{ r.VisitDate }}</span>
+                    <span class="badge bg-light text-dark me-1">{{ r.Time }}</span>
+                    <strong class="badge" :style="resultBadgeStyle(r.Result)">{{ r.Result }}</strong>
+                    <span v-if="r.Minister" class="ms-1 small text-muted">（{{ r.Minister }}）</span>
+                  </div>
+                  <button
+                    class="btn btn-sm btn-outline-danger"
+                    @click="deleteRecord(r.VisitID)"
+                    :disabled="saving"
+                  >
+                    <i class="fas fa-trash-alt"></i>
+                  </button>
                 </div>
-                <button
-                  class="btn btn-sm btn-outline-danger"
-                  @click="deleteRecord(r.VisitID)"
-                  :disabled="saving"
-                >
-                  <i class="fas fa-trash-alt"></i>
-                </button>
+                <p v-if="r.Comment" class="mb-0 small">{{ r.Comment }}</p>
+                <p v-if="r.Note"    class="mb-0 small text-muted">{{ r.Note }}</p>
               </div>
-              <p v-if="r.Comment" class="mb-0 small">{{ r.Comment }}</p>
-              <p v-if="r.Note"    class="mb-0 small text-muted">{{ r.Note }}</p>
             </div>
-          </div>
-          <p v-else class="text-muted small">訪問履歴はありません</p>
-
-          <hr />
+            <p v-else class="text-muted small">訪問履歴はありません</p>
+          </template>
 
           <!-- 新規登録フォーム -->
-          <h6 class="mb-2">訪問記録を追加</h6>
-          <div class="row g-2">
+          <div v-else class="row g-2">
 
             <div class="col-6">
               <label class="form-label small">訪問日</label>
               <input type="date" class="form-control form-control-sm" v-model="form.VisitDate" />
             </div>
 
-            <div class="col-6">
-              <label class="form-label small">時間帯</label>
-              <select class="form-select form-select-sm" v-model="form.Time">
-                <option value="">選択してください</option>
-                <option>9時以前</option>
-                <option>9時〜12時</option>
-                <option>12時〜13時</option>
-                <option>13時〜16時</option>
-                <option>16時〜18時</option>
-                <option>18時以降</option>
-              </select>
+            <div class="col-12">
+              <label class="form-label small d-block">時間帯</label>
+              <div class="form-check form-check-inline" v-for="t in TIME_OPTIONS" :key="t">
+                <input class="form-check-input" type="radio" :id="`time-${t}`" :value="t" v-model="form.Time">
+                <label class="form-check-label small" :for="`time-${t}`">{{ t }}</label>
+              </div>
             </div>
 
-            <div class="col-6">
-              <label class="form-label small">結果</label>
-              <select class="form-select form-select-sm" v-model="form.Result">
-                <option value="">選択してください</option>
-                <option>済</option>
-                <option>済(投函)</option>
-                <option>済(留守録)</option>
-                <option>不在</option>
-                <option>訪問不可</option>
-              </select>
+            <div class="col-12">
+              <label class="form-label small d-block">結果</label>
+              <div class="form-check form-check-inline" v-for="r in RESULT_OPTIONS" :key="r">
+                <input class="form-check-input" type="radio" :id="`result-${r}`" :value="r" v-model="form.Result">
+                <label class="form-check-label small" :for="`result-${r}`">{{ r }}</label>
+              </div>
             </div>
 
             <div class="col-6">
               <label class="form-label small">担当者</label>
-              <input type="text" class="form-control form-control-sm" v-model="form.Minister" placeholder="担当者名" />
+              <select class="form-select form-select-sm" v-model="form.Minister">
+                <option value="">選択してください</option>
+                <option v-for="u in users" :key="u.ID" :value="u.UserName">{{ u.UserName }}</option>
+              </select>
             </div>
 
             <div class="col-12">
@@ -119,7 +111,7 @@
         <!-- フッター -->
         <div class="modal-footer">
           <button class="btn btn-secondary" @click="$emit('update:modelValue', false)">閉じる</button>
-          <button class="btn btn-primary" @click="submitRecord" :disabled="saving">
+          <button v-if="mode !== 'history'" class="btn btn-primary" @click="submitRecord" :disabled="saving">
             <span v-if="saving"><i class="fas fa-spinner fa-spin"></i> 保存中...</span>
             <span v-else><i class="fas fa-save"></i> 保存</span>
           </button>
@@ -132,19 +124,42 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from "vue";
-import { upsertVisitRecord, deleteVisitRecord } from "@/services/api.js";
+import { ref, computed, watch, onMounted } from "vue";
+import { upsertVisitRecord, deleteVisitRecord, getUserMaster } from "@/services/api.js";
+import { useAuthStore } from "@/store/authStore.js";
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   house:      { type: Object, default: null },
+  mode:       { type: String, default: "add" }, // 'add' | 'history'
 });
 
 const emit = defineEmits(["update:modelValue", "saved", "deleted"]);
 
-const saving       = ref(false);
-const saveError    = ref("");
+const authStore = useAuthStore();
+
+const TIME_OPTIONS   = ["9時以前", "9時〜12時", "12時〜13時", "13時〜16時", "16時〜18時", "18時以降"];
+const RESULT_OPTIONS = ["済", "済(投函)", "済(留守録)", "不在", "訪問不可"];
+
+// 訪問結果ごとの背景色（済=緑, 不在=薄い灰色, 拒否=赤）
+const RESULT_COLORS = {
+  "済":        { bg: "#28a745", color: "#fff" },
+  "済(投函)":  { bg: "#28a745", color: "#fff" },
+  "済(留守録)": { bg: "#28a745", color: "#fff" },
+  "不在":      { bg: "#e9ecef", color: "#212529" },
+  "訪問不可":   { bg: "#dc3545", color: "#fff" },
+  "拒否":      { bg: "#dc3545", color: "#fff" },
+};
+
+function resultBadgeStyle(result) {
+  const c = RESULT_COLORS[result];
+  return c ? { backgroundColor: c.bg, color: c.color } : {};
+}
+
+const saving        = ref(false);
+const saveError     = ref("");
 const ngFlagEnabled = ref(false);
+const users         = ref([]);
 
 const form = ref({
   VisitDate: new Date().toISOString().slice(0, 10),
@@ -155,14 +170,23 @@ const form = ref({
   Note:      "",
 });
 
-// モーダルが開くたびにフォームをリセット
+onMounted(async () => {
+  try {
+    const res = await getUserMaster();
+    if (res.status === "success") users.value = res.users || [];
+  } catch (e) {
+    console.error(e);
+  }
+});
+
+// モーダルが開くたびにフォームをリセット（担当者はログインユーザーを初期値にする）
 watch(() => props.modelValue, (v) => {
   if (v) {
     form.value = {
       VisitDate: new Date().toISOString().slice(0, 10),
       Time:      "",
       Result:    "",
-      Minister:  "",
+      Minister:  authStore.userName || "",
       Comment:   "",
       Note:      "",
     };

@@ -77,14 +77,17 @@
                 <div class="small text-muted">{{ h.BuildingName }} {{ h.RoomNo }}</div>
               </td>
               <td>
-                <div class="small">{{ h.InputTownName }}{{ h.InputCho }}{{ h.InputBanchi }}</div>
+                <div class="small">{{ houseAddress(h) }}</div>
               </td>
               <td class="text-center">
                 <span :class="statusPillClass(h.VisitStatus)">{{ h.VisitStatus || "未訪問" }}</span>
               </td>
-              <td class="text-center small">{{ latestResult(h) }}</td>
+              <td class="text-center small">
+                {{ latestResult(h) }}
+                <button class="btn btn-sm btn-outline-primary ms-1" @click.stop="openAddModal(h)">結果入力</button>
+              </td>
               <td class="text-center">
-                <button class="btn btn-sm btn-outline-primary" @click.stop="openModal(h)">
+                <button class="btn btn-sm btn-outline-secondary" @click.stop="openHistoryModal(h)">
                   <i class="fas fa-plus"></i>
                 </button>
               </td>
@@ -113,7 +116,8 @@
                 <span :class="statusPillClass(h.VisitStatus)" style="font-size:14px;">
                   {{ h.VisitStatus || "未訪問" }}
                 </span>
-                <button class="btn btn-sm btn-outline-primary" @click.stop="openModal(h)">
+                <button class="btn btn-sm btn-outline-primary" @click.stop="openAddModal(h)">結果入力</button>
+                <button class="btn btn-sm btn-outline-secondary" @click.stop="openHistoryModal(h)">
                   <i class="fas fa-plus"></i>
                 </button>
               </div>
@@ -125,10 +129,11 @@
 
   </main>
 
-  <!-- 訪問記録モーダル -->
+  <!-- 訪問記録モーダル（結果入力=add / 履歴=history） -->
   <VisitModal
     v-model="showModal"
     :house="selectedHouse"
+    :mode="modalMode"
     @saved="onRecordSaved"
     @deleted="onRecordDeleted"
   />
@@ -159,6 +164,7 @@ const focusedHousing = ref(null);
 const mapContainer   = ref(null);
 const showModal      = ref(false);
 const selectedHouse  = ref(null);
+const modalMode      = ref("add"); // 'add' | 'history'
 
 let mapInstance = null;
 let kmlLayer    = null;
@@ -199,10 +205,27 @@ function focusHouse(h) {
   }
 }
 
-// 訪問記録モーダルを開く
-function openModal(h) {
+// 「結果入力」：訪問記録の追加専用モーダルを開く
+function openAddModal(h) {
   selectedHouse.value = h;
+  modalMode.value     = "add";
   showModal.value     = true;
+}
+
+// 「履歴」：訪問履歴専用モーダルを開く
+function openHistoryModal(h) {
+  selectedHouse.value = h;
+  modalMode.value     = "history";
+  showModal.value     = true;
+}
+
+// 住所欄：address_sw に応じてCSV由来／手入力のどちらかを結合して表示する
+// （ORIGINAL/EditDetailList.html の execGeoCode と同じ組み立てルール）
+function houseAddress(h) {
+  if (h.AddressSW === "直接入力") {
+    return `${h.InputTownName ?? ""}${h.InputCho ?? ""}-${h.InputBanchi ?? ""}`;
+  }
+  return `${h.CSVTownName ?? ""}${h.CSVCho ?? ""}-${h.CSVBanchi ?? ""}`;
 }
 
 // 保存後：該当住戸の VisitStatus を更新
@@ -319,7 +342,7 @@ onUnmounted(() => {
 
 .col-id      { width: 48px;  text-align: center; }
 .col-name    { width: 180px; }
-.col-address { min-width: 200px; }
+.col-address { min-width: 100px; }
 .col-status  { width: 110px; text-align: center; }
 .col-result  { width: 100px; text-align: center; }
 .col-history { width: 60px;  text-align: center; }
