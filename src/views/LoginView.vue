@@ -190,11 +190,15 @@ input {
   right: 8px;
   top: 50%;
   transform: translateY(-50%);
+  width: auto;
+  height: auto;
+  margin: 0;
   background: none;
   border: none;
   cursor: pointer;
   color: #6b7280;
   padding: 4px;
+  line-height: 1;
 }
 
 button {

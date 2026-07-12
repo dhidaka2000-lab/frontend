@@ -41,7 +41,13 @@
     </div>
 
     <!-- 地図 -->
-    <div id="mapContainer" ref="mapContainer"></div>
+    <div class="d-flex justify-content-end px-2 mb-1">
+      <button class="btn btn-sm btn-outline-secondary" @click="toggleMap">
+        <i class="fas" :class="mapVisible ? 'fa-eye-slash' : 'fa-eye'"></i>
+        {{ mapVisible ? "地図を隠す" : "地図を表示" }}
+      </button>
+    </div>
+    <div id="mapContainer" ref="mapContainer" v-show="mapVisible"></div>
 
     <!-- 子カード一覧 -->
     <div class="mt-3 px-2">
@@ -128,7 +134,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import { getChildListByCard, getKmlUrl } from "@/services/api.js";
 import { loadGoogleMaps, createMap, addKmlLayer } from "@/services/maps.js";
@@ -143,6 +149,7 @@ const loading      = ref(true);
 const cardInfo     = ref(null);
 const childs       = ref([]);
 const mapContainer = ref(null);
+const mapVisible   = ref(true);
 
 let mapInstance = null;
 let kmlLayer    = null;
@@ -155,6 +162,17 @@ function statusBadgeClass(status) {
     "返却済": "badge bg-secondary",
   };
   return map[status] || "badge bg-light text-dark";
+}
+
+// 地図の表示/非表示を切り替える（再表示時はタイル再描画のためresizeイベントを発火）
+function toggleMap() {
+  mapVisible.value = !mapVisible.value;
+  if (mapVisible.value && mapInstance) {
+    nextTick(() => {
+      google.maps.event.trigger(mapInstance, "resize");
+      mapInstance.setCenter(mapInstance.getCenter());
+    });
+  }
 }
 
 function openChildMap(child) {

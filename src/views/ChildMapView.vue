@@ -35,7 +35,13 @@
     </header>
 
     <!-- 地図 -->
-    <div id="mapContainer" ref="mapContainer"></div>
+    <div class="d-flex justify-content-end px-2 mb-1">
+      <button class="btn btn-sm btn-outline-secondary" @click="toggleMap">
+        <i class="fas" :class="mapVisible ? 'fa-eye-slash' : 'fa-eye'"></i>
+        {{ mapVisible ? "地図を隠す" : "地図を表示" }}
+      </button>
+    </div>
+    <div id="mapContainer" ref="mapContainer" v-show="mapVisible"></div>
 
     <!-- 住戸一覧 -->
     <div class="mt-3 px-2">
@@ -140,7 +146,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/store/authStore.js";
 import { getChildDetail, getKmlUrl } from "@/services/api.js";
@@ -162,6 +168,7 @@ const houses         = ref([]);
 const statusFilter   = ref("");
 const focusedHousing = ref(null);
 const mapContainer   = ref(null);
+const mapVisible     = ref(true);
 const showModal      = ref(false);
 const selectedHouse  = ref(null);
 const modalMode      = ref("add"); // 'add' | 'history'
@@ -217,6 +224,17 @@ function openHistoryModal(h) {
   selectedHouse.value = h;
   modalMode.value     = "history";
   showModal.value     = true;
+}
+
+// 地図の表示/非表示を切り替える（再表示時はタイル再描画のためresizeイベントを発火）
+function toggleMap() {
+  mapVisible.value = !mapVisible.value;
+  if (mapVisible.value && mapInstance) {
+    nextTick(() => {
+      google.maps.event.trigger(mapInstance, "resize");
+      mapInstance.setCenter(mapInstance.getCenter());
+    });
+  }
 }
 
 // 住所欄：address_sw に応じてCSV由来／手入力のどちらかを結合して表示する
