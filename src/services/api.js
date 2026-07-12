@@ -152,6 +152,16 @@ export async function getCardNoOptions() {
   return callWorker({ funcName: "getCardNoOptions" });
 }
 
+/** 区域カードの貸出履歴一覧を取得する */
+export async function getCardUsageHistory(cardNo) {
+  return callWorker({ funcName: "getCardUsageHistory", CardNo: cardNo });
+}
+
+/** 貸出を取り消す（直近の貸出履歴を削除し、前回の状態に復元する） */
+export async function cancelCardCheckout(cardNo) {
+  return callWorker({ funcName: "cancelCardCheckout", CardNo: cardNo });
+}
+
 // ----------------------------------------------------------------
 // 子カード一覧（CardMap / ChildList / EditChildList）
 // ----------------------------------------------------------------
@@ -247,4 +257,18 @@ export async function getKml(file, ChildNo = null) {
   const res = await fetch(url.toString());
   if (!res.ok) throw new Error(`KML fetch error ${res.status}`);
   return res.text();
+}
+
+/**
+ * google.maps.KmlLayer に渡す公開URLを組み立てる（Google側が直接fetchするため認証不要のURL文字列を返す）。
+ * @param {string}      file
+ * @param {number|string|null} childNo  指定時は2桁ゼロ埋めして該当区画のみに絞り込む
+ */
+export function getKmlUrl(file, childNo = null) {
+  const url = new URL(`${WORKER_URL}/getKml`);
+  url.searchParams.set("file", file);
+  if (childNo != null && childNo !== "") {
+    url.searchParams.set("ChildNo", String(childNo).padStart(2, "0"));
+  }
+  return url.toString();
 }
