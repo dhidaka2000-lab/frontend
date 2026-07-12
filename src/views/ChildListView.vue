@@ -144,8 +144,8 @@
         <div class="modal-footer">
           <button class="btn btn-secondary" @click="closeAssignModal">閉じる</button>
           <button class="btn btn-primary" @click="submitAssign" :disabled="assigning">
-            <span v-if="assigning"><i class="fas fa-spinner fa-spin"></i> 保存中...</span>
-            <span v-else>保存</span>
+            <span v-if="assigning"><i class="fas fa-spinner fa-spin"></i> 割当中...</span>
+            <span v-else>割当</span>
           </button>
         </div>
 
@@ -253,6 +253,7 @@ async function submitAssign() {
       if (idx !== -1) {
         cards.value[idx].MINISTER     = res.child?.MINISTER     ?? (selectedMinisterId.value || null);
         cards.value[idx].MINISTERNAME = res.child?.MINISTERNAME ?? (ministers.value.find(m => Number(m.ID) === Number(selectedMinisterId.value))?.UserName ?? "");
+        if (res.child?.CHILDSTATUS) cards.value[idx].CHILDSTATUS = res.child.CHILDSTATUS;
       }
       closeAssignModal();
     } else {
