@@ -45,6 +45,8 @@ export function createMap(container, center, zoom = 16) {
     center,
     zoom,
     mapTypeId: google.maps.MapTypeId.ROADMAP,
+    // Ctrl+スクロールや2本指操作を不要にし、通常のスクロール／1本指でズーム・パンできるようにする
+    gestureHandling: "greedy",
   });
 }
 
