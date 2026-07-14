@@ -31,7 +31,7 @@
       ／ グループ：{{ authStore.userGroup }} ／ 権限：{{ authStore.userRole }}
     </div>
 
-    <!-- 絞込 + 並替 + 更新ボタン -->
+    <!-- 絞込 + 並替 + QRコード読取 + 更新ボタン -->
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
       <div class="d-flex flex-wrap gap-2">
         <button class="btn btn-outline-secondary" @click="showFilterPanel = !showFilterPanel">
@@ -39,6 +39,9 @@
         </button>
         <button class="btn btn-outline-secondary" @click="showSortPanel = !showSortPanel">
           <i class="fas fa-sort"></i> 並替
+        </button>
+        <button class="btn btn-outline-secondary" @click="openScanDialog">
+          <i class="fas fa-qrcode"></i> QRコード読取
         </button>
       </div>
       <button class="btn btn-primary" @click="refresh" :disabled="isUpdating">
@@ -144,9 +147,9 @@
               </h5>
               <span
                 class="badge rounded-pill"
-                :class="{ 'pill-clickable': child.CHILDSTATUS === '返却済' }"
+                :class="{ 'pill-clickable': child.CHILDSTATUS === '返却済' && !child.SHARED }"
                 :style="statusPillStyle(child.CHILDSTATUS)"
-                @click="child.CHILDSTATUS === '返却済' && cancelReturn(child)"
+                @click="child.CHILDSTATUS === '返却済' && !child.SHARED && cancelReturn(child)"
               >
                 {{ child.CHILDSTATUS }}
               </span>
@@ -165,10 +168,18 @@
               </small>
               <div class="d-flex gap-2">
                 <button
+                  v-if="!child.SHARED"
                   class="btn btn-sm btn-outline-danger"
                   @click="returnCard(child)"
                 >
                   <i class="fas fa-undo"></i> 返却
+                </button>
+                <button
+                  v-else
+                  class="btn btn-sm btn-outline-warning"
+                  @click="endShare(child)"
+                >
+                  <i class="fas fa-share-alt"></i> 共有終了
                 </button>
                 <button
                   class="btn btn-sm btn-outline-primary"
@@ -189,15 +200,48 @@
     </div>
 
   </main>
+
+  <!-- QRコード読取ダイアログ -->
+  <div
+    class="modal fade"
+    :class="{ show: showScanModal }"
+    :style="showScanModal ? 'display:block' : 'display:none'"
+    tabindex="-1"
+    role="dialog"
+    @click.self="closeScanModal"
+  >
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">QRコード読取</h5>
+          <button type="button" class="btn-close" @click="closeScanModal"></button>
+        </div>
+        <div class="modal-body text-center">
+          <video ref="scanVideo" class="w-100" playsinline muted></video>
+          <p v-if="scanError" class="text-danger small mt-2">{{ scanError }}</p>
+          <p v-else class="small text-muted mt-2">共有元のQRコードを画面内に写してください</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="closeScanModal">閉じる</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div v-if="showScanModal" class="modal-backdrop fade show"></div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
-import { useRouter } from "vue-router";
+import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
+import { useRouter, useRoute } from "vue-router";
+import jsQR from "jsqr";
 import { useAuthStore } from "@/store/authStore.js";
-import { getFilteredChildCardbyUser, returnChildCard, cancelChildReturn } from "@/services/api.js";
+import {
+  getFilteredChildCardbyUser, returnChildCard, cancelChildReturn,
+  claimChildShare, endChildShare,
+} from "@/services/api.js";
 
 const router    = useRouter();
+const route     = useRoute();
 const authStore = useAuthStore();
 
 const childs     = ref([]);
@@ -322,6 +366,106 @@ async function cancelReturn(child) {
   }
 }
 
+// 共有終了
+async function endShare(child) {
+  if (!confirm(`共有された${child.CARDNO}-${child.CHILDNO} ${child.CHILDBLOCK}の共有を終了します。よろしいですか？`)) return;
+  try {
+    const res = await endChildShare(child.SHAREID);
+    if (res.status === "success") {
+      childs.value = childs.value.filter(c => c.CHILDID !== child.CHILDID || !c.SHARED);
+    } else {
+      alert(res.message || "共有終了に失敗しました");
+    }
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+// ---- QRコード読取（共有の受け取り） ----
+const showScanModal = ref(false);
+const scanVideo      = ref(null);
+const scanError      = ref("");
+let scanStream = null;
+let scanRAF    = null;
+const scanCanvas = document.createElement("canvas");
+
+async function openScanDialog() {
+  scanError.value      = "";
+  showScanModal.value  = true;
+  await nextTick();
+  try {
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    scanVideo.value.srcObject = scanStream;
+    await scanVideo.value.play();
+    scanRAF = requestAnimationFrame(scanFrame);
+  } catch (e) {
+    scanError.value = "カメラを起動できませんでした：" + e.message;
+  }
+}
+
+function scanFrame() {
+  if (!showScanModal.value || !scanVideo.value) return;
+  const video = scanVideo.value;
+  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    scanCanvas.width  = video.videoWidth;
+    scanCanvas.height = video.videoHeight;
+    const ctx = scanCanvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
+    const imageData = ctx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height);
+    if (code?.data) {
+      const text = code.data;
+      closeScanModal();
+      handleScanResult(text);
+      return;
+    }
+  }
+  scanRAF = requestAnimationFrame(scanFrame);
+}
+
+function closeScanModal() {
+  showScanModal.value = false;
+  if (scanRAF) cancelAnimationFrame(scanRAF);
+  scanRAF = null;
+  if (scanStream) {
+    scanStream.getTracks().forEach(t => t.stop());
+    scanStream = null;
+  }
+}
+
+function extractShareToken(text) {
+  try {
+    const url = new URL(text);
+    const query = url.hash.includes("?") ? url.hash.split("?")[1] : url.search.replace(/^\?/, "");
+    return new URLSearchParams(query).get("share");
+  } catch {
+    return text || null; // 生のトークン文字列がそのまま読み取られた場合
+  }
+}
+
+async function handleScanResult(text) {
+  const token = extractShareToken(text);
+  if (!token) {
+    alert("有効な共有QRコードではありません");
+    return;
+  }
+  await claimShare(token);
+}
+
+async function claimShare(token) {
+  try {
+    const res = await claimChildShare(token);
+    if (res.status === "success") {
+      alert("子カードの共有を受け取りました");
+      await fetchData();
+    } else {
+      alert(res.message || "共有の受け取りに失敗しました");
+    }
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
 // オリジナル版のBootstrap4配色をhex直指定で踏襲（区域リスト画面と同一）
 const STATUS_COLORS = {
   "貸出中": { bg: "#ffc107", color: "#212529" },
@@ -336,7 +480,20 @@ function statusPillStyle(status) {
   return { backgroundColor: c.bg, color: c.color };
 }
 
-onMounted(fetchData);
+onMounted(async () => {
+  await fetchData();
+
+  // 共有用URLを直接開いた場合（URLの share パラメータ）は自動で受け取り処理を行う
+  const shareToken = route.query.share;
+  if (shareToken) {
+    router.replace({ query: {} });
+    await claimShare(String(shareToken));
+  }
+});
+
+onUnmounted(() => {
+  closeScanModal();
+});
 </script>
 
 <style scoped>
