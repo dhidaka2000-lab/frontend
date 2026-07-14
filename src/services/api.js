@@ -237,6 +237,21 @@ export async function cancelChildReturn(childId) {
   return callWorker({ funcName: "cancelChildReturn", ChildID: childId });
 }
 
+/** 子カードの共有用ワンタイムトークンを発行する */
+export async function createChildShare(childId) {
+  return callWorker({ funcName: "createChildShare", ChildID: childId });
+}
+
+/** QRコード読取で得たトークンを検証し、共有を確定する（3時間有効） */
+export async function claimChildShare(token) {
+  return callWorker({ funcName: "claimChildShare", token });
+}
+
+/** 受け取った共有を終了する */
+export async function endChildShare(shareId) {
+  return callWorker({ funcName: "endChildShare", ShareID: shareId });
+}
+
 /** 子カード全件を取得する（管理画面用） */
 export async function getChildListAll(filters = {}) {
   return callWorker({ funcName: "getChildListAll", ...filters });

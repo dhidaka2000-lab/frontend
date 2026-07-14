@@ -27,10 +27,16 @@
           </div>
         </div>
 
-        <button class="btn btn-link p-0 text-center" @click="router.push({ name: 'mainMenu' })">
-          <i class="fas fa-home fa-2x"></i>
-          <div class="small">ホーム</div>
-        </button>
+        <div class="d-flex align-items-center gap-2">
+          <button class="btn btn-link p-0 text-center" @click="openShareDialog">
+            <i class="fas fa-share-alt fa-2x"></i>
+            <div class="small">共有</div>
+          </button>
+          <button class="btn btn-link p-0 text-center" @click="router.push({ name: 'mainMenu' })">
+            <i class="fas fa-home fa-2x"></i>
+            <div class="small">ホーム</div>
+          </button>
+        </div>
       </div>
     </header>
 
@@ -143,13 +149,47 @@
     @saved="onRecordSaved"
     @deleted="onRecordDeleted"
   />
+
+  <!-- 共有用QRコードダイアログ -->
+  <div
+    class="modal fade"
+    :class="{ show: showShareModal }"
+    :style="showShareModal ? 'display:block' : 'display:none'"
+    tabindex="-1"
+    role="dialog"
+    @click.self="closeShareModal"
+  >
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">子カードを共有</h5>
+          <button type="button" class="btn-close" @click="closeShareModal"></button>
+        </div>
+        <div class="modal-body text-center">
+          <p v-if="!shareError" class="small text-muted">
+            このQRコードを共有相手に読み取ってもらってください（読み取りから3時間有効です）
+          </p>
+          <div v-if="shareLoading" class="py-4">
+            <i class="fas fa-spinner fa-spin fa-2x"></i>
+          </div>
+          <img v-else-if="shareQrDataUrl" :src="shareQrDataUrl" alt="共有QRコード" class="img-fluid" />
+          <p v-if="shareError" class="text-danger small mt-2">{{ shareError }}</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="closeShareModal">閉じる</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div v-if="showShareModal" class="modal-backdrop fade show"></div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
 import { useRouter } from "vue-router";
+import QRCode from "qrcode";
 import { useAuthStore } from "@/store/authStore.js";
-import { getChildDetail, getKmlUrl } from "@/services/api.js";
+import { getChildDetail, getKmlUrl, createChildShare } from "@/services/api.js";
 import { loadGoogleMaps, createMap, addMarker, addKmlLayer } from "@/services/maps.js";
 import VisitModal from "@/components/VisitModal.vue";
 
@@ -172,6 +212,11 @@ const mapVisible     = ref(true);
 const showModal      = ref(false);
 const selectedHouse  = ref(null);
 const modalMode      = ref("add"); // 'add' | 'history'
+
+const showShareModal = ref(false);
+const shareLoading   = ref(false);
+const shareQrDataUrl = ref("");
+const shareError     = ref("");
 
 let mapInstance = null;
 let kmlLayer    = null;
@@ -224,6 +269,31 @@ function openHistoryModal(h) {
   selectedHouse.value = h;
   modalMode.value     = "history";
   showModal.value     = true;
+}
+
+// 子カードの一時共有：ワンタイムURLを発行し、QRコード化してダイアログに表示する
+async function openShareDialog() {
+  shareError.value     = "";
+  shareQrDataUrl.value = "";
+  shareLoading.value   = true;
+  showShareModal.value = true;
+  try {
+    const res = await createChildShare(childInfo.value.ChildID);
+    if (res.status === "success") {
+      const shareUrl = `${window.location.origin}${window.location.pathname}#/mypage?share=${res.token}`;
+      shareQrDataUrl.value = await QRCode.toDataURL(shareUrl, { width: 240, margin: 1 });
+    } else {
+      shareError.value = res.message || "共有用URLの生成に失敗しました";
+    }
+  } catch (e) {
+    shareError.value = e.message;
+  } finally {
+    shareLoading.value = false;
+  }
+}
+
+function closeShareModal() {
+  showShareModal.value = false;
 }
 
 // 地図の表示/非表示を切り替える（再表示時はタイル再描画のためresizeイベントを発火）
