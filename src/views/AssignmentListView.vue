@@ -31,29 +31,98 @@
       ／ グループ：{{ authStore.userGroup }} ／ 権限：{{ authStore.userRole }}
     </div>
 
-    <!-- フィルタ + 更新ボタン -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
-      <div class="d-flex flex-wrap">
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="radio" id="filter-all" value="all" v-model="filterMode">
-          <label class="form-check-label" for="filter-all">全件表示</label>
-        </div>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="radio" id="filter-lent" value="lent" v-model="filterMode">
-          <label class="form-check-label" for="filter-lent">貸出中のみ</label>
-        </div>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="radio" id="filter-focus" value="focus" v-model="filterMode">
-          <label class="form-check-label" for="filter-focus">重点のみ</label>
-        </div>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="radio" id="filter-nonfocus" value="nonfocus" v-model="filterMode">
-          <label class="form-check-label" for="filter-nonfocus">重点以外</label>
-        </div>
+    <!-- 絞込 + 並替 + 更新ボタン -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
+      <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-outline-secondary" @click="showFilterPanel = !showFilterPanel">
+          <i class="fas fa-filter"></i> 絞込
+        </button>
+        <button class="btn btn-outline-secondary" @click="showSortPanel = !showSortPanel">
+          <i class="fas fa-sort"></i> 並替
+        </button>
       </div>
       <button class="btn btn-primary" @click="refresh" :disabled="isUpdating">
         <i class="fas fa-sync-alt"></i> 最新情報に更新
       </button>
+    </div>
+
+    <!-- 絞込パネル -->
+    <div v-if="showFilterPanel" class="card card-body shadow-sm mb-3">
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label small mb-1">状態</label>
+          <div class="d-flex flex-wrap">
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" id="filter-all" value="all" v-model="filterMode">
+              <label class="form-check-label" for="filter-all">全件表示</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" id="filter-lent" value="lent" v-model="filterMode">
+              <label class="form-check-label" for="filter-lent">貸出中のみ</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" id="filter-focus" value="focus" v-model="filterMode">
+              <label class="form-check-label" for="filter-focus">重点のみ</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" id="filter-nonfocus" value="nonfocus" v-model="filterMode">
+              <label class="form-check-label" for="filter-nonfocus">重点以外</label>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-sm-4">
+          <label class="form-label small mb-1">エリア</label>
+          <select class="form-select form-select-sm" v-model="filterArea">
+            <option value="">すべて</option>
+            <option v-for="a in areaOptions" :key="a" :value="a">{{ a }}</option>
+          </select>
+        </div>
+        <div class="col-6 col-sm-4">
+          <label class="form-label small mb-1">カードの色</label>
+          <select class="form-select form-select-sm" v-model="filterColor">
+            <option value="">すべて</option>
+            <option v-for="c in colorOptions" :key="c" :value="c">{{ c }}</option>
+          </select>
+        </div>
+        <div class="col-12 col-sm-4 d-flex align-items-end">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="filter-remaining10" v-model="filterRemaining10">
+            <label class="form-check-label" for="filter-remaining10">残件数10件以上のみ</label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 並替パネル -->
+    <div v-if="showSortPanel" class="card card-body shadow-sm mb-3">
+      <div class="row g-3">
+        <div class="col-8 col-sm-6">
+          <label class="form-label small mb-1">並び替え項目</label>
+          <select class="form-select form-select-sm" v-model="sortKey">
+            <option value="">指定なし</option>
+            <option value="area">エリア</option>
+            <option value="color">カードの色</option>
+            <option value="cardNo">カード番号</option>
+            <option value="remaining">残件数</option>
+            <option value="checkoutDate">貸出日</option>
+            <option value="startDate">使用開始日</option>
+            <option value="limitDate">使用期限日</option>
+          </select>
+        </div>
+        <div class="col-4 col-sm-6">
+          <label class="form-label small mb-1">順序</label>
+          <div class="d-flex">
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" id="sort-asc" value="asc" v-model="sortOrder">
+              <label class="form-check-label" for="sort-asc">昇順</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" id="sort-desc" value="desc" v-model="sortOrder">
+              <label class="form-check-label" for="sort-desc">降順</label>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- カード一覧 -->
@@ -73,7 +142,12 @@
                 <span class="cardno-badge">{{ child.CARDNO }}-{{ child.CHILDNO }}</span>
                 {{ child.CHILDBLOCK }}
               </h5>
-              <span class="badge rounded-pill" :style="statusPillStyle(child.CHILDSTATUS)">
+              <span
+                class="badge rounded-pill"
+                :class="{ 'pill-clickable': child.CHILDSTATUS === '返却済' }"
+                :style="statusPillStyle(child.CHILDSTATUS)"
+                @click="child.CHILDSTATUS === '返却済' && cancelReturn(child)"
+              >
                 {{ child.CHILDSTATUS }}
               </span>
             </div>
@@ -89,12 +163,20 @@
                 貸出: {{ child.CHILDCHECKOUTDATE ?? "-" }} ／
                 期限: {{ child.CHILDLIMITDATE ?? "-" }}
               </small>
-              <button
-                class="btn btn-sm btn-outline-primary"
-                @click="openChildMap(child)"
-              >
-                <i class="fas fa-map-marked-alt"></i> 開く
-              </button>
+              <div class="d-flex gap-2">
+                <button
+                  class="btn btn-sm btn-outline-danger"
+                  @click="returnCard(child)"
+                >
+                  <i class="fas fa-undo"></i> 返却
+                </button>
+                <button
+                  class="btn btn-sm btn-outline-primary"
+                  @click="openChildMap(child)"
+                >
+                  <i class="fas fa-map-marked-alt"></i> 開く
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -113,7 +195,7 @@
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/store/authStore.js";
-import { getFilteredChildCardbyUser } from "@/services/api.js";
+import { getFilteredChildCardbyUser, returnChildCard, cancelChildReturn } from "@/services/api.js";
 
 const router    = useRouter();
 const authStore = useAuthStore();
@@ -123,13 +205,59 @@ const filterMode = ref("all");
 const loading    = ref(false);
 const isUpdating = ref(false);
 
-// フィルタ済み一覧
+// 絞込パネル
+const showFilterPanel   = ref(false);
+const filterArea        = ref("");
+const filterColor       = ref("");
+const filterRemaining10 = ref(false);
+
+// 並替パネル
+const showSortPanel = ref(false);
+const sortKey        = ref("");
+const sortOrder      = ref("asc");
+
+const areaOptions  = computed(() => [...new Set(childs.value.map(c => c.AREA).filter(Boolean))].sort());
+const colorOptions = computed(() => [...new Set(childs.value.map(c => c.COLOR).filter(Boolean))].sort());
+
+function remainingOf(child) {
+  return (child.CHILDHOUSES ?? 0) - (child.VISITED ?? 0);
+}
+
+const SORT_FIELDS = {
+  area:         c => c.AREA ?? "",
+  color:        c => c.COLOR ?? "",
+  cardNo:       c => Number(c.CARDNO) * 1000 + Number(c.CHILDNO ?? 0),
+  remaining:    c => remainingOf(c),
+  checkoutDate: c => c.CHILDCHECKOUTDATE ?? "",
+  startDate:    c => c.CHILDSTARTDATE ?? "",
+  limitDate:    c => c.CHILDLIMITDATE ?? "",
+};
+
+// フィルタ・並替済み一覧
 const filteredChilds = computed(() => {
-  if (filterMode.value === "all")      return childs.value;
-  if (filterMode.value === "lent")     return childs.value.filter(c => c.CHILDSTATUS === "貸出中");
-  if (filterMode.value === "focus")    return childs.value.filter(c => c.CHILDSTATUS === "重点");
-  if (filterMode.value === "nonfocus") return childs.value.filter(c => c.CHILDSTATUS !== "重点");
-  return childs.value;
+  let list = childs.value;
+
+  if (filterMode.value === "lent")     list = list.filter(c => c.CHILDSTATUS === "貸出中");
+  if (filterMode.value === "focus")    list = list.filter(c => c.CHILDSTATUS === "重点");
+  if (filterMode.value === "nonfocus") list = list.filter(c => c.CHILDSTATUS !== "重点");
+
+  if (filterArea.value)  list = list.filter(c => c.AREA === filterArea.value);
+  if (filterColor.value) list = list.filter(c => c.COLOR === filterColor.value);
+  if (filterRemaining10.value) list = list.filter(c => remainingOf(c) >= 10);
+
+  if (sortKey.value) {
+    const getter = SORT_FIELDS[sortKey.value];
+    const dir    = sortOrder.value === "desc" ? -1 : 1;
+    list = [...list].sort((a, b) => {
+      const va = getter(a);
+      const vb = getter(b);
+      if (va < vb) return -1 * dir;
+      if (va > vb) return  1 * dir;
+      return 0;
+    });
+  }
+
+  return list;
 });
 
 async function fetchData() {
@@ -157,6 +285,41 @@ function openChildMap(child) {
     name:   "childMap",
     params: { cardNo: child.CARDNO, childNo: child.CHILDNO },
   });
+}
+
+// 返却
+async function returnCard(child) {
+  if (!confirm(`${child.CARDNO}-${child.CHILDNO} ${child.CHILDBLOCK}を返却します。よろしいですか？`)) return;
+  try {
+    const res = await returnChildCard(child.CHILDID);
+    if (res.status === "success") {
+      const idx = childs.value.findIndex(c => c.CHILDID === child.CHILDID);
+      if (idx !== -1) {
+        childs.value[idx].CHILDSTATUS       = res.child?.CHILDSTATUS ?? "返却済";
+        childs.value[idx].CHILDCHECKOUTDATE = res.child?.CHILDCHECKOUTDATE ?? childs.value[idx].CHILDCHECKOUTDATE;
+      }
+    } else {
+      alert(res.message || "返却に失敗しました");
+    }
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+// 返却取消（返却済ピルのクリック）
+async function cancelReturn(child) {
+  if (!confirm(`返却済みの${child.CARDNO}-${child.CHILDNO} ${child.CHILDBLOCK}の返却操作を取り消します。よろしいですか？`)) return;
+  try {
+    const res = await cancelChildReturn(child.CHILDID);
+    if (res.status === "success") {
+      const idx = childs.value.findIndex(c => c.CHILDID === child.CHILDID);
+      if (idx !== -1) childs.value[idx].CHILDSTATUS = res.child?.CHILDSTATUS ?? "貸出中";
+    } else {
+      alert(res.message || "返却取消に失敗しました");
+    }
+  } catch (e) {
+    alert(e.message);
+  }
 }
 
 // オリジナル版のBootstrap4配色をhex直指定で踏襲（区域リスト画面と同一）
@@ -194,5 +357,9 @@ onMounted(fetchData);
   font-weight: bold;
   margin-right: 6px;
   font-size: 14px;
+}
+
+.pill-clickable {
+  cursor: pointer;
 }
 </style>
