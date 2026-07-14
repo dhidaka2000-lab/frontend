@@ -232,6 +232,11 @@ export async function returnChildCard(childId) {
   return callWorker({ funcName: "returnChildCard", ChildID: childId });
 }
 
+/** 返却済の子カードの返却を取り消し、貸出中に戻す（使用期限内の場合のみ） */
+export async function cancelChildReturn(childId) {
+  return callWorker({ funcName: "cancelChildReturn", ChildID: childId });
+}
+
 /** 子カード全件を取得する（管理画面用） */
 export async function getChildListAll(filters = {}) {
   return callWorker({ funcName: "getChildListAll", ...filters });
