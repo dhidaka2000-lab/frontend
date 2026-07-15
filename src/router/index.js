@@ -110,19 +110,22 @@ const router = createRouter({
 });
 
 // ナビゲーションガード: 未認証なら / へリダイレクト
-// ただし、ネット未接続かつオフライン保存済みの子カードがある場合は、
-// ログインをスキップしてオフライン専用ページ（または保存済みの子カード画面）へ誘導する。
+// ただし、オフライン保存済みの子カードがある場合は、ログインをスキップして
+// オフライン専用ページ（または保存済みの子カード画面）へ誘導する。
 router.beforeEach((to) => {
   if (to.meta.public) return true;
 
   const auth = useAuthStore();
   if (auth.isLoggedIn) return true;
 
+  // オフライン専用ページ等からの遷移で、ローカルに保存済みの子カードを開く場合は、
+  // 現在の接続状態に関わらず（navigator.onLineが不正確な場合もあるため）常に許可する。
+  if (to.name === "childMap") {
+    const entry = findOfflineEntryByCard(to.params.cardNo, to.params.childNo);
+    if (entry) return true;
+  }
+
   if (!isOnline() && hasOfflineData()) {
-    if (to.name === "childMap") {
-      const entry = findOfflineEntryByCard(to.params.cardNo, to.params.childNo);
-      if (entry) return true;
-    }
     return { name: "offlineHome" };
   }
 
