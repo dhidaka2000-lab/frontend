@@ -5,17 +5,25 @@ import { createRouter, createWebHashHistory } from "vue-router";
 import { useAuthStore } from "@/store/authStore.js";
 import { isOnline, hasOfflineData, findOfflineEntryByCard } from "@/services/offline.js";
 
+// ログイン画面／オフライン専用ページ／子カード画面は、ネット未接続時にも遷移できる
+// 必要があるため、他画面のような遅延読込（動的import）にはしない。遅延読込だと、
+// 該当チャンクを一度も取得したことがない端末で本当にオフラインの場合、ボタンを押しても
+// チャンクのフェッチに失敗して画面遷移が反応しなくなる（#47関連の追加修正）。
+import LoginView       from "@/views/LoginView.vue";
+import OfflineHomeView from "@/views/OfflineHomeView.vue";
+import ChildMapView    from "@/views/ChildMapView.vue";
+
 const routes = [
   {
     path:      "/",
     name:      "login",
-    component: () => import("@/views/LoginView.vue"),
+    component: LoginView,
     meta:      { public: true },
   },
   {
     path:      "/offline",
     name:      "offlineHome",
-    component: () => import("@/views/OfflineHomeView.vue"),
+    component: OfflineHomeView,
     meta:      { public: true },
   },
   {
@@ -31,7 +39,7 @@ const routes = [
   {
     path:      "/childmap/:cardNo/:childNo",
     name:      "childMap",
-    component: () => import("@/views/ChildMapView.vue"),
+    component: ChildMapView,
     props:     route => ({
       cardNo:  Number(route.params.cardNo),
       childNo: Number(route.params.childNo),
