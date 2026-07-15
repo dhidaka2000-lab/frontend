@@ -612,9 +612,10 @@ select {
 }
 
 .gyou-btn.active {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
+  background: #e8f0fe;
+  color: var(--accent, #0f62fe);
+  border-color: var(--accent, #0f62fe);
+  font-weight: 600;
 }
 
 .user-list {
