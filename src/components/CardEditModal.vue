@@ -276,6 +276,12 @@ async function submit(action) {
       record.NextAvailableDate = "";
     }
 
+    // 一覧画面からの新規貸出操作の場合のみ、配下の子カード・訪問履歴のリセットを要求する
+    // （「修正」モーダルからの貸出中への復元＝action==='revert'は対象外）
+    if (props.mode === "checkout") {
+      record.ResetChildren = true;
+    }
+
     const res = await upsertCardList(record);
     if (res.status === "success") {
       emit("saved", res.card || record);
