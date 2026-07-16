@@ -87,11 +87,15 @@
       <div class="row">
         <div class="col-12 col-md-10 col-lg-8 mx-auto">
           <h5><b>お知らせ</b></h5>
-          <h6><b>2023/04/05</b></h6>
-          <p class="text-danger"><b>マイページの貸出中カードに残件数を表示するよう変更しました。</b></p>
-          <p>・一旦、全ての住戸の件数が表示されています。</p>
-          <p class="text-primary"><b>・カードを開いて表示すると件数が更新されます。</b></p>
-          <p>・残件数とは、訪問済や留守宅、訪問拒否を除いた、訪問可能な件数です。</p>
+          <div v-if="announcementsLoading" class="text-muted small">読み込み中...</div>
+          <template v-else-if="announcements.length > 0">
+            <div v-for="a in announcements" :key="a.ID" class="mb-3">
+              <h6><b>{{ a.PublishDate }}</b></h6>
+              <p class="fw-bold mb-1">{{ a.Title }}</p>
+              <div class="announcement-body" v-html="sanitize(a.Body)"></div>
+            </div>
+          </template>
+          <p v-else class="text-muted small">現在、お知らせはありません</p>
         </div>
       </div>
 
@@ -100,18 +104,44 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
+import DOMPurify from "dompurify";
 import { useAuthStore } from "@/store/authStore.js";
+import { getActiveAnnouncements } from "@/services/api.js";
 
 const router    = useRouter();
 const authStore = useAuthStore();
 const loading   = ref(false);
 
+const announcements        = ref([]);
+const announcementsLoading = ref(false);
+
+function sanitize(html) {
+  return DOMPurify.sanitize(html || "", {
+    ALLOWED_TAGS: ["b", "strong", "i", "em", "u", "a", "span", "br", "p", "div"],
+    ALLOWED_ATTR: ["href", "style", "target", "rel"],
+  });
+}
+
+async function fetchAnnouncements() {
+  announcementsLoading.value = true;
+  try {
+    const res = await getActiveAnnouncements();
+    if (res.status === "success") announcements.value = res.announcements || [];
+  } catch (e) {
+    console.error(e);
+  } finally {
+    announcementsLoading.value = false;
+  }
+}
+
 async function logout() {
   await authStore.logout();
   router.push({ name: "login" });
 }
+
+onMounted(fetchAnnouncements);
 
 const PAGE_ROUTES = {
   cardlist:  "cardList",
