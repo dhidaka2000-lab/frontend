@@ -92,9 +92,11 @@
           <thead class="table-light">
             <tr>
               <th class="col-id">#</th>
+              <th class="col-ng">NG</th>
               <th class="col-name">氏名・建物</th>
               <th class="col-address">住所</th>
               <th class="col-status">ステータス</th>
+              <th class="col-lastvisit">最新訪問日</th>
               <th class="col-result">最新結果</th>
               <th class="col-history">履歴</th>
             </tr>
@@ -103,28 +105,37 @@
             <tr
               v-for="h in filteredHouses"
               :key="h.DetailID"
+              :data-housing="h.HousingNo"
               :class="{ 'table-warning': focusedHousing === h.HousingNo }"
               @click="focusHouse(h)"
               style="cursor:pointer"
             >
               <td class="text-center fw-bold">{{ h.HousingNo }}</td>
+              <td class="text-center">
+                <i v-if="h.NGFlag === '不可'" class="fas fa-ban text-danger" title="訪問不可"></i>
+              </td>
               <td>
-                <div>{{ h.FamilyName }}</div>
-                <div class="small text-muted">{{ h.BuildingName }} {{ h.RoomNo }}</div>
+                <button type="button" class="btn btn-link p-0 text-start" @click.stop="openHouseInfoModal(h)">
+                  <span v-if="buildingIconClass(h)" class="me-1 text-secondary">
+                    <i class="fas" :class="buildingIconClass(h)"></i>
+                  </span>
+                  <span>{{ h.FamilyName || "(表記なし)" }}</span>
+                  <div class="small text-muted">{{ h.BuildingName }} {{ h.RoomNo }}</div>
+                </button>
               </td>
               <td>
                 <div class="small">{{ houseAddress(h) }}</div>
               </td>
               <td class="text-center">
-                <span :class="statusPillClass(h.VisitStatus)">{{ h.VisitStatus || "未訪問" }}</span>
+                <span :class="statusPillClass(displayStatus(h))">{{ displayStatus(h) }}</span>
               </td>
+              <td class="text-center small">{{ latestVisitDate(h) }}</td>
               <td class="text-center small">
-                {{ latestResult(h) }}
-                <button class="btn btn-sm btn-outline-primary ms-1" @click.stop="openAddModal(h)">結果入力</button>
+                <button class="btn btn-sm btn-outline-primary" @click.stop="openAddModal(h)">結果入力</button>
               </td>
               <td class="text-center">
-                <button class="btn btn-sm btn-outline-secondary" @click.stop="openHistoryModal(h)">
-                  <i class="fas fa-plus"></i>
+                <button class="btn btn-sm btn-outline-secondary" @click.stop="openHistoryModal(h)" title="履歴">
+                  <i class="fas fa-history"></i>
                 </button>
               </td>
             </tr>
@@ -137,6 +148,7 @@
         <div
           v-for="h in filteredHouses"
           :key="h.DetailID"
+          :data-housing="h.HousingNo"
           class="card card-house mb-2"
           :class="{ 'focused-house': focusedHousing === h.HousingNo }"
           @click="focusHouse(h)"
@@ -145,16 +157,23 @@
             <div class="d-flex justify-content-between align-items-center">
               <div>
                 <span class="fw-bold me-2">#{{ h.HousingNo }}</span>
-                {{ h.FamilyName }}
+                <i v-if="h.NGFlag === '不可'" class="fas fa-ban text-danger me-1" title="訪問不可"></i>
+                <span v-if="buildingIconClass(h)" class="me-1 text-secondary">
+                  <i class="fas" :class="buildingIconClass(h)"></i>
+                </span>
+                <button type="button" class="btn btn-link p-0" @click.stop="openHouseInfoModal(h)">
+                  {{ h.FamilyName || "(表記なし)" }}
+                </button>
                 <div class="small text-muted">{{ h.BuildingName }} {{ h.RoomNo }}</div>
+                <div class="small text-muted">最新訪問日: {{ latestVisitDate(h) }}</div>
               </div>
               <div class="d-flex align-items-center gap-2">
-                <span :class="statusPillClass(h.VisitStatus)" style="font-size:14px;">
-                  {{ h.VisitStatus || "未訪問" }}
+                <span :class="statusPillClass(displayStatus(h))" style="font-size:14px;">
+                  {{ displayStatus(h) }}
                 </span>
                 <button class="btn btn-sm btn-outline-primary" @click.stop="openAddModal(h)">結果入力</button>
-                <button class="btn btn-sm btn-outline-secondary" @click.stop="openHistoryModal(h)">
-                  <i class="fas fa-plus"></i>
+                <button class="btn btn-sm btn-outline-secondary" @click.stop="openHistoryModal(h)" title="履歴">
+                  <i class="fas fa-history"></i>
                 </button>
               </div>
             </div>
@@ -174,6 +193,14 @@
     :offline-user="usingCachedData ? cachedOfflineUser : null"
     @saved="onRecordSaved"
     @deleted="onRecordDeleted"
+  />
+
+  <!-- 住戸情報モーダル（氏名・建物クリック） -->
+  <HouseInfoModal
+    v-model="showHouseInfoModal"
+    :house="houseInfoTarget"
+    :read-only="usingCachedData"
+    @saved="onHouseInfoSaved"
   />
 
   <!-- 共有用QRコードダイアログ -->
@@ -226,9 +253,10 @@ import { useRouter } from "vue-router";
 import QRCode from "qrcode";
 import { useAuthStore } from "@/store/authStore.js";
 import { getChildDetail, getKmlUrl, createChildShare } from "@/services/api.js";
-import { loadGoogleMaps, createMap, addMarker, addKmlLayer } from "@/services/maps.js";
+import { loadGoogleMaps, createMap, addMarker, addKmlLayer, setMarkerFocused } from "@/services/maps.js";
 import { isChildOffline, getOfflineChild, findOfflineEntryByCard, isOnline } from "@/services/offline.js";
 import VisitModal from "@/components/VisitModal.vue";
+import HouseInfoModal from "@/components/HouseInfoModal.vue";
 import OfflineSyncDialog from "@/components/OfflineSyncDialog.vue";
 
 const props = defineProps({
@@ -255,6 +283,9 @@ const showShareModal = ref(false);
 const shareLoading   = ref(false);
 const shareQrDataUrl = ref("");
 const shareError     = ref("");
+
+const showHouseInfoModal = ref(false);
+const houseInfoTarget    = ref(null);
 
 const usingCachedData  = ref(false);
 const cachedMapImage   = ref("");
@@ -292,7 +323,9 @@ async function handleOfflineReleased() {
 
 let mapInstance = null;
 let kmlLayer    = null;
+let infoWindow  = null;
 const markers   = [];
+const markersByHousing = new Map(); // HousingNo -> google.maps.Marker
 
 // フィルタ済み住戸
 const filteredHouses = computed(() => {
@@ -311,22 +344,105 @@ function statusPillClass(status) {
   return map[status] || "badge bg-light text-dark";
 }
 
-// 最新の訪問結果を返す
-function latestResult(h) {
-  if (!h.VRecord || h.VRecord.length === 0) return "-";
-  const sorted = [...h.VRecord].sort((a, b) =>
-    b.VisitDate?.localeCompare(a.VisitDate) ?? 0
-  );
-  return sorted[0]?.Result || "-";
+const TIME_ORDER = {
+  "9時以前":    1,
+  "9時〜12時":  2,
+  "12時〜13時": 3,
+  "13時〜16時": 4,
+  "16時〜18時": 5,
+  "18時以降":   6,
+};
+
+// 日付・時間帯で新しい順に並べた VRecord の先頭（最新の訪問記録）を返す
+function latestRecord(h) {
+  if (!h.VRecord || h.VRecord.length === 0) return null;
+  const sorted = [...h.VRecord].sort((a, b) => {
+    if (a.VisitDate !== b.VisitDate) return (b.VisitDate || "").localeCompare(a.VisitDate || "");
+    return (TIME_ORDER[b.Time] || 0) - (TIME_ORDER[a.Time] || 0);
+  });
+  return sorted[0] ?? null;
 }
 
-// 住戸フォーカス（地図マーカーへスクロール）
+// 最新訪問日
+function latestVisitDate(h) {
+  return latestRecord(h)?.VisitDate || "-";
+}
+
+// NGを考慮しない「生の」訪問ステータス（訪問結果の履歴のみから算出）
+function rawVisitStatus(h) {
+  const top = latestRecord(h)?.Result || "";
+  if (top.includes("済")) return "済";
+  if (top === "不在")     return "不在";
+  if (top !== "")         return "不在";
+  return "未訪問";
+}
+
+// ステータス欄に表示する値。訪問不可はNGアイコン列に移したため、
+// NGが立っている場合はステータス欄には（NGを除いた）本来の訪問状況を表示する
+function displayStatus(h) {
+  if (h.NGFlag === "不可") return rawVisitStatus(h);
+  return h.VisitStatus || "未訪問";
+}
+
+// 建物種別に応じたアイコンクラス（ORIGINAL/ChildMap.htmlのBuildingCategory分岐を踏襲）
+const BUILDING_ICONS = {
+  "店舗":     "fa-store",
+  "工場":     "fa-industry",
+  "倉庫":     "fa-warehouse",
+  "事務所":   "fa-building",
+  "各種施設": "fa-building",
+  "駐車場":   "fa-parking",
+  "空地":     "fa-stop-circle",
+};
+function buildingIconClass(h) {
+  return BUILDING_ICONS[h.BuildingCategory] || null;
+}
+
+// 住戸リスト側からの選択：該当ピンを強調表示し、地図を移動して吹き出しを開く
 function focusHouse(h) {
+  const prevMarker = focusedHousing.value != null ? markersByHousing.get(focusedHousing.value) : null;
+  if (prevMarker) setMarkerFocused(prevMarker, false);
+
   focusedHousing.value = h.HousingNo;
-  if (mapInstance && h.CSVLat && h.CSVLng) {
+
+  const marker = markersByHousing.get(h.HousingNo);
+  if (mapInstance && marker && h.CSVLat && h.CSVLng) {
+    setMarkerFocused(marker, true);
     mapInstance.panTo({ lat: h.CSVLat, lng: h.CSVLng });
     mapInstance.setZoom(18);
+    openInfoWindow(h, marker);
   }
+}
+
+// 地図側（ピンクリック）からの選択：住戸リストの該当行をハイライトし、スクロールする
+function focusFromMarker(h) {
+  focusHouse(h);
+  nextTick(() => {
+    document.querySelector(`[data-housing="${h.HousingNo}"]`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+}
+
+// 吹き出し（InfoWindow）：ORIGINAL/ChildMap.htmlのsetMarkersと同じ内容・体裁
+// （Google標準の吹き出しをそのまま使用。カスタムの形・配色は付けない）
+function openInfoWindow(h, marker) {
+  if (!infoWindow) infoWindow = new google.maps.InfoWindow();
+  const content = h.FamilyName
+    ? `[No.${h.HousingNo}] ${h.FamilyName} さん<br>${houseAddress(h)}`
+    : `[No.${h.HousingNo}] ${houseAddress(h)}`;
+  infoWindow.setContent(content);
+  infoWindow.open({ map: mapInstance, anchor: marker });
+}
+
+// 「氏名・建物」クリック：住戸情報モーダルを開く
+function openHouseInfoModal(h) {
+  houseInfoTarget.value = h;
+  showHouseInfoModal.value = true;
+}
+
+function onHouseInfoSaved(updated) {
+  const idx = houses.value.findIndex(h => h.DetailID === updated.DetailID);
+  if (idx !== -1) houses.value[idx] = { ...houses.value[idx], ...updated };
 }
 
 // 「結果入力」：訪問記録の追加専用モーダルを開く
@@ -432,7 +548,7 @@ async function initMap() {
       kmlLayer = addKmlLayer(mapInstance, getKmlUrl(cardInfo.value.KML, props.childNo));
     }
 
-    // 住戸マーカー
+    // 住戸マーカー（クリックで住戸リストの該当行をハイライト・吹き出し表示）
     for (const h of houses.value) {
       if (h.CSVLat && h.CSVLng) {
         const marker = addMarker(
@@ -440,7 +556,9 @@ async function initMap() {
           { lat: Number(h.CSVLat), lng: Number(h.CSVLng) },
           `#${h.HousingNo} ${h.FamilyName}`
         );
+        marker.addListener("click", () => focusFromMarker(h));
         markers.push(marker);
+        markersByHousing.set(h.HousingNo, marker);
       }
     }
   } catch (e) {
@@ -485,7 +603,9 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (kmlLayer) kmlLayer.setMap(null);
+  if (infoWindow) infoWindow.close();
   markers.forEach(m => { if (m.map) m.map = null; });
+  markersByHousing.clear();
 });
 </script>
 
@@ -519,12 +639,14 @@ onUnmounted(() => {
   background-color: #fff8d6 !important;
 }
 
-.col-id      { width: 48px;  text-align: center; }
-.col-name    { width: 180px; }
-.col-address { min-width: 100px; }
-.col-status  { width: 110px; text-align: center; }
-.col-result  { width: 100px; text-align: center; }
-.col-history { width: 60px;  text-align: center; }
+.col-id       { width: 48px;  text-align: center; }
+.col-ng       { width: 40px;  text-align: center; }
+.col-name     { width: 180px; }
+.col-address  { min-width: 100px; }
+.col-status   { width: 110px; text-align: center; }
+.col-lastvisit { width: 100px; text-align: center; }
+.col-result   { width: 90px;  text-align: center; }
+.col-history  { width: 60px;  text-align: center; }
 
 .offline-pill {
   background-color: #6f42c1;
