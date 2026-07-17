@@ -54,32 +54,39 @@
             <p v-else class="text-muted small">訪問履歴はありません</p>
           </template>
 
-          <!-- 新規登録フォーム -->
+          <!-- 新規登録フォーム（オリジナル版の項目順・トグルボタン形式を踏襲） -->
           <div v-else class="row g-2">
 
-            <div class="col-6">
-              <label class="form-label small">訪問日</label>
+            <div class="col-3 col-form-label small">訪問日</div>
+            <div class="col-9">
               <input type="date" class="form-control form-control-sm" v-model="form.VisitDate" />
             </div>
 
-            <div class="col-12">
-              <label class="form-label small d-block">時間帯</label>
-              <div class="form-check form-check-inline" v-for="t in TIME_OPTIONS" :key="t">
-                <input class="form-check-input" type="radio" :id="`time-${t}`" :value="t" v-model="form.Time">
-                <label class="form-check-label small" :for="`time-${t}`">{{ t }}</label>
-              </div>
+            <div class="col-3 col-form-label small">時間帯</div>
+            <div class="col-9">
+              <select class="form-select form-select-sm" v-model="form.Time">
+                <option v-for="t in TIME_OPTIONS" :key="t" :value="t">{{ t }}</option>
+              </select>
             </div>
 
-            <div class="col-12">
-              <label class="form-label small d-block">結果</label>
-              <div class="form-check form-check-inline" v-for="r in RESULT_OPTIONS" :key="r">
-                <input class="form-check-input" type="radio" :id="`result-${r}`" :value="r" v-model="form.Result">
-                <label class="form-check-label small" :for="`result-${r}`">{{ r }}</label>
-              </div>
+            <div class="col-3 col-form-label small">方法</div>
+            <div class="col-9 toggle-group">
+              <template v-for="f in FIELD_OPTIONS" :key="f">
+                <input type="radio" class="btn-check" :id="`field-${f}`" v-model="form.Field" :value="f" autocomplete="off">
+                <label class="btn btn-sm" :class="form.Field === f ? 'btn-primary' : 'btn-outline-primary'" :for="`field-${f}`">{{ f }}</label>
+              </template>
             </div>
 
-            <div class="col-6">
-              <label class="form-label small">担当者</label>
+            <div class="col-3 col-form-label small">結果</div>
+            <div class="col-9 toggle-group">
+              <template v-for="r in RESULT_OPTIONS" :key="r">
+                <input type="radio" class="btn-check" :id="`result-${r}`" v-model="form.Result" :value="r" autocomplete="off">
+                <label class="btn btn-sm" :class="form.Result === r ? 'btn-primary' : 'btn-outline-primary'" :for="`result-${r}`">{{ r }}</label>
+              </template>
+            </div>
+
+            <div class="col-3 col-form-label small">担当者</div>
+            <div class="col-9">
               <div v-if="offlineUser" class="form-control form-control-sm bg-light">
                 {{ form.Minister || "-" }}
               </div>
@@ -89,23 +96,31 @@
               </select>
             </div>
 
-            <div class="col-12">
-              <label class="form-label small">コメント</label>
+            <div class="col-3 col-form-label small">コメント</div>
+            <div class="col-9">
               <textarea class="form-control form-control-sm" v-model="form.Comment" rows="2"></textarea>
             </div>
 
-            <div class="col-12">
-              <label class="form-label small">メモ</label>
+            <div class="col-3 col-form-label small">メモ</div>
+            <div class="col-9">
               <textarea class="form-control form-control-sm" v-model="form.Note" rows="2"></textarea>
             </div>
 
-            <!-- NG フラグ -->
-            <div class="col-12">
+            <!-- 訪問可否（NG） -->
+            <div class="col-3 col-form-label small">訪問可否</div>
+            <div class="col-9">
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="ngCheck" v-model="ngFlagEnabled" />
                 <label class="form-check-label small" for="ngCheck">訪問不可（NG）に設定する</label>
               </div>
             </div>
+
+            <template v-if="ngFlagEnabled">
+              <div class="col-3 col-form-label small">説明</div>
+              <div class="col-9">
+                <textarea class="form-control form-control-sm" v-model="ngComment" rows="2" placeholder="訪問不可の理由等"></textarea>
+              </div>
+            </template>
 
           </div>
 
@@ -155,7 +170,19 @@ const emit = defineEmits(["update:modelValue", "saved", "deleted"]);
 const authStore = useAuthStore();
 
 const TIME_OPTIONS   = ["9時以前", "9時〜12時", "12時〜13時", "13時〜16時", "16時〜18時", "18時以降"];
+const FIELD_OPTIONS  = ["訪問", "ｷｬﾝﾍﾟｰﾝ", "手紙", "電話", "その他"];
 const RESULT_OPTIONS = ["済", "済(投函)", "済(留守録)", "不在", "訪問不可"];
+
+// 現在時刻から時間帯の初期値を決める（ORIGINAL/ChildMap.htmlのregistモード初期化ロジックを踏襲）
+function defaultTimeOfDay() {
+  const hour = new Date().getHours();
+  if (hour < 9)  return "9時以前";
+  if (hour < 12) return "9時〜12時";
+  if (hour < 13) return "12時〜13時";
+  if (hour < 16) return "13時〜16時";
+  if (hour < 18) return "16時〜18時";
+  return "18時以降";
+}
 
 // 訪問結果ごとの背景色（済=緑, 不在=薄い灰色, 拒否=赤）
 const RESULT_COLORS = {
@@ -175,11 +202,13 @@ function resultBadgeStyle(result) {
 const saving        = ref(false);
 const saveError     = ref("");
 const ngFlagEnabled = ref(false);
+const ngComment     = ref("");
 const users         = ref([]);
 
 const form = ref({
   VisitDate: new Date().toISOString().slice(0, 10),
-  Time:      "",
+  Time:      defaultTimeOfDay(),
+  Field:     "訪問",
   Result:    "",
   Minister:  "",
   Comment:   "",
@@ -203,18 +232,21 @@ onMounted(async () => {
 });
 
 // モーダルが開くたびにフォームをリセット（担当者はログインユーザー、
-// オフラインモードではオフライン化した時点のユーザーを初期値にする）
+// オフラインモードではオフライン化した時点のユーザーを初期値にする。
+// 訪問日は当日、時間帯は現在時刻に応じた区分をデフォルトにする）
 watch(() => props.modelValue, (v) => {
   if (v) {
     form.value = {
       VisitDate: new Date().toISOString().slice(0, 10),
-      Time:      "",
+      Time:      defaultTimeOfDay(),
+      Field:     "訪問",
       Result:    "",
       Minister:  props.offlineUser?.userName || authStore.userName || "",
       Comment:   "",
       Note:      "",
     };
     ngFlagEnabled.value = false;
+    ngComment.value      = "";
     saveError.value     = "";
   }
 });
@@ -234,12 +266,19 @@ async function submitRecord() {
   saving.value    = true;
   saveError.value = "";
 
+  // 訪問不可の説明は、専用カラムが無いためメモ欄に連結して保存する
+  // （サーバー側で「訪問不可が入力された。」が自動的に先頭へ付与される）
+  const note = ngFlagEnabled.value && ngComment.value
+    ? [form.value.Note, ngComment.value].filter(Boolean).join("\n")
+    : form.value.Note;
+
   const record = {
     CardNo:    props.house.CardNo,
     ChildNo:   props.house.ChildNo,
     HousingNo: props.house.HousingNo,
     NGFlag:    ngFlagEnabled.value ? "不可" : "",
     ...form.value,
+    Note: note,
   };
 
   // オフライン時は端末内にキューイングし、Supabaseへは同期時にまとめて書き込む
@@ -302,6 +341,16 @@ async function deleteRecord(record) {
 </script>
 
 <style scoped>
+.toggle-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.toggle-group .btn-check:focus + .btn {
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
 .visit-record-timeline {
   border-left: 3px solid #6c757d;
   margin-left: 0.5rem;

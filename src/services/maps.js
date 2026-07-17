@@ -54,13 +54,43 @@ export function createMap(container, center, zoom = 16) {
  * マーカーを生成して地図に追加する。
  * AdvancedMarkerElement は Map ID が無いと警告が出る／環境によって
  * 描画が不安定になるため、Map ID 不要な classic Marker を使用する。
+ * アイコンは赤いピンではなく、黄色い円（●）で表示する。
  * @param {google.maps.Map} map
  * @param {{ lat: number, lng: number }} position
  * @param {string} title
  * @returns {google.maps.Marker}
  */
 export function addMarker(map, position, title = "") {
-  return new google.maps.Marker({ map, position, title });
+  return new google.maps.Marker({
+    map,
+    position,
+    title,
+    icon: {
+      path:         google.maps.SymbolPath.CIRCLE,
+      scale:        8,
+      fillColor:    "#FFD700",
+      fillOpacity:  1,
+      strokeColor:  "#B8860B",
+      strokeWeight: 1.5,
+    },
+  });
+}
+
+/**
+ * マーカーの強調表示（フォーカス中）用アイコンに切り替える／元に戻す。
+ * @param {google.maps.Marker} marker
+ * @param {boolean} focused
+ */
+export function setMarkerFocused(marker, focused) {
+  marker.setIcon({
+    path:         google.maps.SymbolPath.CIRCLE,
+    scale:        focused ? 11 : 8,
+    fillColor:    focused ? "#FF8C00" : "#FFD700",
+    fillOpacity:  1,
+    strokeColor:  focused ? "#8B4513" : "#B8860B",
+    strokeWeight: focused ? 2 : 1.5,
+  });
+  marker.setZIndex(focused ? 999 : undefined);
 }
 
 /**
