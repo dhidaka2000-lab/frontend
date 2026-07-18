@@ -44,7 +44,8 @@
       <div class="alert alert-warning">
         <div class="d-flex justify-content-between align-items-center">
           <span v-if="!backfillRunning">建物マスタがまだ空です。既存の住戸データから建物情報を移行できます。</span>
-          <span v-else>住戸データを取得中... （{{ backfillProgress }}件処理済み）</span>
+          <span v-else-if="backfillPhase === 'fetch'">住戸データを取得中... （{{ backfillProgress }}件処理済み）</span>
+          <span v-else>建物マスタへ書き込み中... （{{ backfillProgress }} / {{ backfillTotal }} 件）</span>
           <button class="btn btn-warning" @click="runBackfill" :disabled="busy">
             初回のみ：住戸データから移行
           </button>
@@ -306,8 +307,11 @@ const editForm   = ref({});
 const saveError  = ref("");
 
 const backfillRunning  = ref(false);
+const backfillPhase    = ref(""); // "fetch" | "commit"
 const backfillProgress = ref(0);
+const backfillTotal    = ref(0);
 const BACKFILL_PAGE_SIZE = 300;
+const COMMIT_CHUNK_SIZE  = 50; // 1回のcommit呼び出しで書き込む建物グループ数
 
 const BuildKinds = ["戸建て", "長屋", "アパート", "マンション", "オートロック", "寮", "店舗", "事務所", "工場", "倉庫", "各種施設", "駐車場", "空地", "空き家", "その他"];
 const NGStatus    = ["可", "不可"];
@@ -356,8 +360,18 @@ function backfillDedupeKey(d) {
 
 async function runBackfill() {
   if (!confirm("既存の住戸データから建物マスタへ一括移行します。この操作は初回のみ実行してください。よろしいですか？")) return;
+
+  // 二重実行防止：実行直前に建物マスタが本当に空か確認する
+  const preCheck = await getBuildingMasterList();
+  if (preCheck.status === "success" && preCheck.buildings.length > 0) {
+    alert("建物マスタに既にデータが存在するため、中断しました。");
+    await fetchBuildings();
+    return;
+  }
+
   busy.value = true;
   backfillRunning.value = true;
+  backfillPhase.value = "fetch";
   backfillProgress.value = 0;
   try {
     // detailを少数ずつページングして取得・復号する（1回のWorker呼び出しあたりの
@@ -400,13 +414,27 @@ async function runBackfill() {
       },
     }));
 
-    const commitRes = await commitBuildingMasterBackfill(buildingGroups);
-    if (commitRes.status === "success") {
-      alert(`建物マスタへ ${commitRes.buildingsCreated} 件の建物を作成しました（対象住戸 ${commitRes.detailRowsLinked} 件）。`);
-      await fetchBuildings();
-    } else {
-      alert(commitRes.message || "移行に失敗しました");
+    // 建物グループ数が多い環境でも1回のWorker呼び出しあたりの書き込み量を
+    // 一定に保つため、フロント側で数十グループ単位に分割してcommitを繰り返す。
+    backfillPhase.value = "commit";
+    backfillProgress.value = 0;
+    backfillTotal.value = buildingGroups.length;
+    let buildingsCreated = 0;
+    let detailRowsLinked = 0;
+    for (let i = 0; i < buildingGroups.length; i += COMMIT_CHUNK_SIZE) {
+      const chunk = buildingGroups.slice(i, i + COMMIT_CHUNK_SIZE);
+      const commitRes = await commitBuildingMasterBackfill(chunk);
+      if (commitRes.status !== "success") {
+        alert(`${commitRes.message || "移行に失敗しました"}（建物 ${buildingsCreated}件まで完了）`);
+        return;
+      }
+      buildingsCreated += commitRes.buildingsCreated;
+      detailRowsLinked += commitRes.detailRowsLinked;
+      backfillProgress.value += chunk.length;
     }
+
+    alert(`建物マスタへ ${buildingsCreated} 件の建物を作成しました（対象住戸 ${detailRowsLinked} 件）。`);
+    await fetchBuildings();
   } catch (e) {
     console.error(e);
     alert("移行に失敗しました");
