@@ -36,6 +36,34 @@
       </p>
     </div>
 
+    <!-- 取り込みモード -->
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">取り込みモード</h5>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="radio" id="mode-upsert" value="upsert" v-model="importMode">
+          <label class="form-check-label" for="mode-upsert">
+            <strong>更新</strong>（既存データとCSVに差異があれば更新、CSVにしかない住所は追加、
+            CSVに存在せずテーブルにのみ存在する住所は削除。既に取り込み済みの市区町村を最新のCSVで同期したい場合）
+          </label>
+        </div>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="radio" id="mode-insert" value="insert" v-model="importMode">
+          <label class="form-check-label" for="mode-insert">
+            <strong>追加投入</strong>（既存データは変更せず、CSVの内容を追加するのみ。
+            まだ取り込んでいない別の市区町村を追加したい場合）
+          </label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" id="mode-replace" value="replace" v-model="importMode">
+          <label class="form-check-label" for="mode-replace">
+            <strong>総入替</strong>（町名マスタの全データを削除してから、CSVの内容を取り込む。
+            単一の市区町村だけで運用する場合）
+          </label>
+        </div>
+      </div>
+    </div>
+
     <!-- ファイル選択 -->
     <div class="card mb-3">
       <div class="card-body">
@@ -104,13 +132,17 @@
 <script setup>
 import { ref, computed } from "vue";
 import { useRouter } from "vue-router";
-import { importKibanMasterBatch } from "@/services/api.js";
+import {
+  clearKibanMaster, beginKibanImportRun, importKibanMasterBatch,
+  importKibanMasterInsertBatch, deleteKibanMasterStale,
+} from "@/services/api.js";
 
 const router = useRouter();
 
 const parsing  = ref(false);
 const rows     = ref([]);
 const parseMessage  = ref("");
+const importMode    = ref("upsert"); // "upsert" | "insert" | "replace"
 
 const importing     = ref(false);
 const importedCount = ref(0);
@@ -205,16 +237,48 @@ async function onFileChange(event) {
   }
 }
 
+const MODE_CONFIRM_MESSAGES = {
+  replace: "町名マスタの全データを削除してから、このCSVの内容を取り込みます。よろしいですか？",
+  upsert:  "このCSVに含まれる市区町村の町名マスタを、CSVの内容に完全に同期します（CSVに存在しない住所は削除されます）。よろしいですか？",
+};
+
 async function runImport() {
   if (!canImport.value) return;
+
+  const confirmMessage = MODE_CONFIRM_MESSAGES[importMode.value];
+  if (confirmMessage && !confirm(confirmMessage)) return;
 
   importing.value     = true;
   importedCount.value = 0;
   resultMessage.value = "";
   try {
+    if (importMode.value === "replace") {
+      const clearRes = await clearKibanMaster();
+      if (clearRes.status !== "success") {
+        resultOk.value = false;
+        resultMessage.value = clearRes.message || "既存データの削除に失敗しました。";
+        return;
+      }
+    }
+
+    let syncStartedAt = null;
+    if (importMode.value === "upsert") {
+      const beginRes = await beginKibanImportRun();
+      if (beginRes.status !== "success") {
+        resultOk.value = false;
+        resultMessage.value = beginRes.message || "インポート開始処理に失敗しました。";
+        return;
+      }
+      syncStartedAt = beginRes.startedAt;
+    }
+
     for (let i = 0; i < rows.value.length; i += BATCH_SIZE) {
       const batch = rows.value.slice(i, i + BATCH_SIZE);
-      const res = await importKibanMasterBatch(batch);
+      // 「総入替」は全件削除後なのでupsertで問題なく、「更新」ももちろんupsert。
+      // 「追加投入」だけは既存データを一切触らないplain insertにする。
+      const res = importMode.value === "insert"
+        ? await importKibanMasterInsertBatch(batch)
+        : await importKibanMasterBatch(batch);
       if (res.status !== "success") {
         resultOk.value = false;
         resultMessage.value = res.message || `インポートに失敗しました（${importedCount.value}件まで完了）。`;
@@ -222,6 +286,17 @@ async function runImport() {
       }
       importedCount.value += batch.length;
     }
+
+    if (importMode.value === "upsert" && syncStartedAt) {
+      const cityCodes = [...new Set(rows.value.map(r => r.CityCode).filter(Boolean))];
+      const cleanupRes = await deleteKibanMasterStale(cityCodes, syncStartedAt);
+      if (cleanupRes.status !== "success") {
+        resultOk.value = false;
+        resultMessage.value = cleanupRes.message || "不要になったレコードの削除に失敗しました。";
+        return;
+      }
+    }
+
     resultOk.value = true;
     resultMessage.value = `インポートが完了しました。（${importedCount.value}件）`;
   } catch (e) {

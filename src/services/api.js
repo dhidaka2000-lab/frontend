@@ -330,9 +330,29 @@ export async function renumberDetailList(CardNo, ChildNo) {
   return callWorker({ funcName: "renumberDetailList", CardNo, ChildNo });
 }
 
-/** 町名マスタへ住居表示住所CSVの一部（数千行単位）を取り込む */
+/** 町名マスタを全件削除する（「総入替」モードの1段目） */
+export async function clearKibanMaster() {
+  return callWorker({ funcName: "clearKibanMaster" });
+}
+
+/** 「更新」モードの開始時刻を発行する（完了後の不要行削除に使う） */
+export async function beginKibanImportRun() {
+  return callWorker({ funcName: "beginKibanImportRun" });
+}
+
+/** 町名マスタへ住居表示住所CSVの一部（数千行単位）をupsertで取り込む（「更新」「総入替」モード用） */
 export async function importKibanMasterBatch(rows) {
   return callWorker({ funcName: "importKibanMasterBatch", rows });
+}
+
+/** 町名マスタへ住居表示住所CSVの一部（数千行単位）をinsertで取り込む（「追加投入」モード用） */
+export async function importKibanMasterInsertBatch(rows) {
+  return callWorker({ funcName: "importKibanMasterInsertBatch", rows });
+}
+
+/** 「更新」モードの仕上げ：指定した市区町村コードのうち今回のCSVに存在しない行を削除する */
+export async function deleteKibanMasterStale(cityCodes, since) {
+  return callWorker({ funcName: "deleteKibanMasterStale", cityCodes, since });
 }
 
 /** 町名マスタから町名一覧を取得する（「リストから選択」カスケードの1階層目） */
