@@ -84,6 +84,7 @@
               <th>役割</th>
               <th>Site</th>
               <th>メール</th>
+              <th>状態</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -103,13 +104,17 @@
                 <span v-if="isFlagOn(u.Mail2FLG) && u.Mail2" class="badge bg-light text-dark border me-1" :title="u.Mail2">Mail2</span>
                 <span v-if="isFlagOn(u.Mail3FLG) && u.Mail3" class="badge bg-light text-dark border me-1" :title="u.Mail3">Mail3</span>
               </td>
+              <td>
+                <span v-if="isFlagOn(u.StopFLG)" class="badge bg-danger">停止中</span>
+                <span v-else class="badge bg-success">有効</span>
+              </td>
               <td class="text-nowrap">
                 <button class="btn btn-sm alert-primary me-1" @click="openEditModal(u)">編集</button>
                 <button class="btn btn-sm btn-warning" @click="handleDelete(u)">削除</button>
               </td>
             </tr>
             <tr v-if="filteredUsers.length === 0">
-              <td colspan="8" class="text-center text-muted py-4">該当するユーザーがいません</td>
+              <td colspan="9" class="text-center text-muted py-4">該当するユーザーがいません</td>
             </tr>
           </tbody>
         </table>
@@ -191,6 +196,16 @@
               </div>
             </div>
 
+            <div class="col-12">
+              <div class="form-check">
+                <input type="checkbox" class="form-check-input" id="stopFlag" v-model="form.StopFLG" :true-value="1" :false-value="0" />
+                <label class="form-check-label" for="stopFlag">このユーザーを停止する</label>
+              </div>
+              <div class="form-text">
+                停止すると、UserID・メール1〜3に対応するFirebase Authenticationアカウントが無効化され、ログインできなくなります。
+              </div>
+            </div>
+
             <div class="col-12"><hr /></div>
 
             <!-- メールアドレス x3 -->
@@ -205,6 +220,22 @@
             </div>
             <div class="col-12">
               <small class="text-muted">チェックを入れたメールアドレスのいずれかが、Firebaseログインのメールアドレスと一致するユーザーがログインできます。</small>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label small">
+                初期パスワード{{ isNew ? "" : "（未入力可）" }}
+              </label>
+              <input
+                type="text"
+                class="form-control"
+                v-model="form.InitialPassword"
+                placeholder="6文字以上"
+              />
+              <div class="form-text">
+                UserID・メール1〜3のうち、Firebase Authenticationにまだ存在しないメールアドレスがあれば、このパスワードで新規作成します。
+                {{ isNew ? "" : "既に存在するアカウントのパスワードは変更されません（変更する場合は下のパスワードリセットを使用してください）。" }}
+              </div>
             </div>
 
             <!-- パスワードリセット（Firebase Authentication） -->
@@ -350,6 +381,8 @@ function blankForm() {
     Group:    "",
     Role:     1000,
     Site:     "",
+    StopFLG:  0,
+    InitialPassword: "",
   };
 }
 
@@ -432,9 +465,35 @@ function closeModal() {
   showModal.value = false;
 }
 
+// バックエンドから返るfirebaseSync（作成・削除・スキップ・エラー件数）を、admin向けの要約メッセージにする
+function describeFirebaseSync(firebaseSync) {
+  if (!firebaseSync) return "";
+  const parts = [];
+  const synced = firebaseSync.synced;
+  if (synced) {
+    if (synced.created?.length)         parts.push(`Firebaseアカウントを新規作成：${synced.created.join(", ")}`);
+    if (synced.skipped?.length)         parts.push(`初期パスワード未入力のため未作成：${synced.skipped.join(", ")}`);
+    if (synced.disabledUpdated?.length) parts.push(`有効/無効状態を更新：${synced.disabledUpdated.join(", ")}`);
+    if (synced.errors?.length)          parts.push(`同期エラー：${synced.errors.join(" / ")}`);
+  }
+  const removed = firebaseSync.removed;
+  if (removed) {
+    if (removed.deleted?.length) parts.push(`Firebaseアカウントを削除：${removed.deleted.join(", ")}`);
+    if (removed.errors?.length)  parts.push(`削除エラー：${removed.errors.join(" / ")}`);
+  }
+  // deleteUser の場合、firebaseSync自体が削除結果そのもの
+  if (firebaseSync.deleted?.length) parts.push(`Firebaseアカウントを削除：${firebaseSync.deleted.join(", ")}`);
+  if (firebaseSync.errors?.length)  parts.push(`削除エラー：${firebaseSync.errors.join(" / ")}`);
+  return parts.join("\n");
+}
+
 async function handleSave() {
   if (!form.value.UserName) {
     saveError.value = "氏名は必須です";
+    return;
+  }
+  if (isNew.value && (!form.value.InitialPassword || form.value.InitialPassword.length < 6)) {
+    saveError.value = "新規作成時は初期パスワード（6文字以上）を入力してください";
     return;
   }
   saving.value    = true;
@@ -444,6 +503,8 @@ async function handleSave() {
     if (res.status === "success") {
       await fetchUsers();
       showModal.value = false;
+      const summary = describeFirebaseSync(res.firebaseSync);
+      if (summary) alert(summary);
     } else {
       saveError.value = res.message || "保存に失敗しました";
     }
@@ -455,15 +516,20 @@ async function handleSave() {
 }
 
 async function handleDelete(user) {
-  if (!confirm(`「${user.UserName}」を削除してもよろしいですか？`)) return;
+  if (!confirm(`「${user.UserName}」を削除してもよろしいですか？（UserID・メール1〜3のFirebaseアカウントも削除されます）`)) return;
   loading.value = true;
   try {
     const res = await deleteUser(user.ID);
     if (res.status === "success") {
       users.value = users.value.filter(u => u.ID !== user.ID);
+      const summary = describeFirebaseSync(res.firebaseSync);
+      if (summary) alert(summary);
+    } else {
+      alert(res.message || "削除に失敗しました");
     }
   } catch (e) {
     console.error(e);
+    alert(e.message);
   } finally {
     loading.value = false;
   }

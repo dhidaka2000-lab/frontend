@@ -394,7 +394,9 @@ async function afterLogin() {
       authStore.setUserInfo(info);
       router.push({ name: "mainMenu" });
     } else {
-      errorMsg.value = "ユーザーが見つかりませんでした。管理者にお問い合わせください。";
+      errorMsg.value = info.suspended
+        ? (info.message || "このアカウントは停止されています。")
+        : "ユーザーが見つかりませんでした。管理者にお問い合わせください。";
     }
   } catch (e) {
     errorMsg.value = e.message;
