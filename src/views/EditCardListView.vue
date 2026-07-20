@@ -41,16 +41,34 @@
         <h3>区域カード情報の編集</h3>
       </div>
 
-      <div class="d-flex justify-content-between align-items-center mb-2">
+      <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
         <button class="btn btn-primary" @click="openCreateForm">
           <i class="fas fa-plus-circle"></i> 新規作成
         </button>
-        <div>
+        <div class="d-flex align-items-center gap-2">
           <span class="me-2">件数：{{ filteredCards.length }}件</span>
           <button class="btn btn-outline-secondary btn-sm" @click="fetchCards" :disabled="loading">
             <i class="fas fa-sync-alt"></i> 更新
           </button>
         </div>
+      </div>
+
+      <div class="mb-3">
+        <CsvImportExportPanel
+          title="区域カード情報"
+          :columns="CSV_COLUMNS"
+          :legacy-columns="CSV_COLUMNS"
+          :has-legacy-format="true"
+          :has-delete-sync-option="true"
+          format-template-filename="区域カード情報CSVフォーマット.csv"
+          export-filename="区域カード情報.csv"
+          :export-rows="exportCsvRows"
+          :import-batch="importCsvBatch"
+          :delete-missing-rows="deleteMissingCsvRows"
+          :extract-existing-keys="() => cards.map(c => Number(c.CardNo))"
+          :extract-csv-key="row => Number(row.card_no)"
+          @imported="fetchCards"
+        />
       </div>
 
       <!-- 検索/絞り込み -->
@@ -285,7 +303,11 @@
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/store/authStore.js";
-import { getCardList, upsertCardList, deleteCardList, getUserMasterList } from "@/services/api.js";
+import {
+  getCardList, upsertCardList, deleteCardList, getUserMasterList,
+  importCardListBatch, deleteCardListMissing,
+} from "@/services/api.js";
+import CsvImportExportPanel from "@/components/CsvImportExportPanel.vue";
 
 const router    = useRouter();
 const authStore = useAuthStore();
@@ -393,6 +415,56 @@ async function fetchUsers() {
   } catch (e) {
     console.error(e);
   }
+}
+
+// ---- CSVインポート／エクスポート ----
+// 現アプリ用・旧アプリ用（GAS版）とも列名はSupabase card_listテーブルの列名そのまま
+// （旧アプリ用は日付表記とarrengerの氏名/ID表記のみが異なる。csvImportService.js側で変換する）
+const CSV_COLUMNS = [
+  "id", "card_no", "type", "color", "childs", "area", "town_name", "kml", "pdf",
+  "lng", "lat", "term", "status", "group", "arrenger", "start_date", "limit_date",
+  "checkout_date", "return_date", "next_available_date", "description",
+  "timestamp", "operator", "renew",
+];
+
+// ISO日付(YYYY-MM-DD)を旧アプリ（GAS版）が出力していたJS Date文字列表現に変換する
+function toLegacyDateString(isoDate) {
+  if (!isoDate) return "";
+  const d = new Date(isoDate);
+  return Number.isNaN(d.getTime()) ? "" : d.toString();
+}
+
+function exportCsvRows(format) {
+  const legacy = format === "legacy";
+  return cards.value.map(c => ({
+    id: c.ID, card_no: c.CardNo, type: c.Type, color: c.Color, childs: c.Childs,
+    area: c.Area, town_name: c.TownName, kml: c.Kml, pdf: c.Pdf, lng: c.Lng, lat: c.Lat,
+    term:          legacy ? toLegacyDateString(c.Term)          : c.Term,
+    status: c.Status, group: c.Group,
+    arrenger:      legacy ? (c.ArrengerName || "") : c.Arrenger,
+    start_date:    legacy ? toLegacyDateString(c.StartDate)    : c.StartDate,
+    limit_date:    legacy ? toLegacyDateString(c.LimitDate)    : c.LimitDate,
+    checkout_date: legacy ? toLegacyDateString(c.CheckoutDate) : c.CheckoutDate,
+    return_date:   legacy ? toLegacyDateString(c.ReturnDate)   : c.ReturnDate,
+    next_available_date: legacy ? toLegacyDateString(c.NextAvailableDate) : c.NextAvailableDate,
+    description: c.Description,
+    timestamp:     legacy ? toLegacyDateString(c.Timestamp)    : c.Timestamp,
+    operator: c.Operator, renew: c.Renew,
+  }));
+}
+
+async function importCsvBatch(rows, { format }) {
+  const existingByCardNo = new Map(cards.value.map(c => [Number(c.CardNo), c.ID]));
+  const withId = rows.map(row => {
+    const id = existingByCardNo.get(Number(row.card_no));
+    return id != null ? { ...row, id } : row;
+  });
+  return importCardListBatch(withId, format);
+}
+
+async function deleteMissingCsvRows(missingCardNos) {
+  const res = await deleteCardListMissing(missingCardNos);
+  return res.deleted?.length ?? 0;
 }
 
 function openCreateForm() {

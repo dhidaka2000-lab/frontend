@@ -140,6 +140,11 @@ const routes = [
     name:      "announcementApproval",
     component: () => import("@/views/AnnouncementApprovalView.vue"),
   },
+  {
+    path:      "/admin/visit-record-csv",
+    name:      "visitRecordCsv",
+    component: () => import("@/views/VisitRecordCsvView.vue"),
+  },
 ];
 
 const router = createRouter({

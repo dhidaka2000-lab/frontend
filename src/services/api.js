@@ -512,3 +512,49 @@ export function getKmlUrl(file, childNo = null) {
   }
   return url.toString();
 }
+
+// ----------------------------------------------------------------
+// CSVインポート／エクスポート（#4〜#7）
+// ----------------------------------------------------------------
+
+export async function importCardListBatch(rows, format) {
+  return callWorker({ funcName: "importCardListBatch", rows, format });
+}
+export async function deleteCardListMissing(cardNos) {
+  return callWorker({ funcName: "deleteCardListMissing", cardNos });
+}
+
+export async function importChildListBatch(rows, format) {
+  return callWorker({ funcName: "importChildListBatch", rows, format });
+}
+export async function deleteChildListBatch(ids) {
+  return callWorker({ funcName: "deleteChildListBatch", ids });
+}
+
+export async function getAllCardUsageHistory() {
+  return callWorker({ funcName: "getAllCardUsageHistory" });
+}
+export async function importCardUsageHistoryBatch(rows) {
+  return callWorker({ funcName: "importCardUsageHistoryBatch", rows });
+}
+
+export async function getAllChildUsageHistory() {
+  return callWorker({ funcName: "getAllChildUsageHistory" });
+}
+export async function importChildUsageHistoryBatch(rows) {
+  return callWorker({ funcName: "importChildUsageHistoryBatch", rows });
+}
+
+export async function getVisitRecordExportPage(afterRowId, limit) {
+  return callWorker({ funcName: "getVisitRecordExportPage", afterRowId, limit });
+}
+export async function importVisitRecordBatch(rows, format) {
+  return callWorker({ funcName: "importVisitRecordBatch", rows, format });
+}
+
+export async function importUserMasterBatch(rows) {
+  return callWorker({ funcName: "importUserMasterBatch", rows });
+}
+export async function deleteUserMasterBatch(ids) {
+  return callWorker({ funcName: "deleteUserMasterBatch", ids });
+}

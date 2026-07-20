@@ -99,8 +99,16 @@
         </div>
       </div>
 
-      <div class="d-flex justify-content-between align-items-center mb-2">
+      <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
         <h6 class="mb-0">表示中の枚数：{{ filteredCards.length }}枚</h6>
+        <CsvImportExportPanel
+          title="区域カード使用履歴"
+          :columns="USAGE_HISTORY_CSV_COLUMNS"
+          format-template-filename="区域カード使用履歴CSVフォーマット.csv"
+          export-filename="区域カード使用履歴.csv"
+          :export-rows="exportUsageHistoryCsvRows"
+          :import-batch="importUsageHistoryCsvBatch"
+        />
       </div>
 
       <!-- テーブル形式（PC） -->
@@ -297,8 +305,12 @@
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/store/authStore.js";
-import { getCardList, getGroupMaster, getUserMaster, upsertCardList, getCardUsageHistory } from "@/services/api.js";
+import {
+  getCardList, getGroupMaster, getUserMaster, upsertCardList, getCardUsageHistory,
+  getAllCardUsageHistory, importCardUsageHistoryBatch,
+} from "@/services/api.js";
 import CardEditModal from "@/components/CardEditModal.vue";
+import CsvImportExportPanel from "@/components/CsvImportExportPanel.vue";
 
 // 区域リスト画面へのメニュー表示（MainMenuView.vue）と同じ閾値。
 // レガシー版には区域リスト内での編集操作を別ロールで制限する記述が見当たらなかったため、
@@ -501,6 +513,29 @@ async function fetchData() {
   } finally {
     loading.value = false;
   }
+}
+
+// ---- CSVインポート／エクスポート（区域カード使用履歴, #5-1） ----
+// 使用履歴は貸出サイクルごとの記録を積み上げていく履歴データのため、
+// CSVインポートは常に追加（INSERT）のみで、更新・削除は行わない。
+const USAGE_HISTORY_CSV_COLUMNS = [
+  "id", "card_no", "term", "status", "group", "arrenger",
+  "checkout_date", "limit_date", "return_date", "next_available_date",
+  "description", "operator", "timestamp",
+];
+
+async function exportUsageHistoryCsvRows() {
+  const res = await getAllCardUsageHistory();
+  return (res.history || []).map(h => ({
+    id: h.ID, card_no: h.CardNo, term: h.Term, status: h.Status, group: h.Group,
+    arrenger: h.Arrenger, checkout_date: h.CheckoutDate, limit_date: h.LimitDate,
+    return_date: h.ReturnDate, next_available_date: h.NextAvailableDate,
+    description: h.Description, operator: h.Operator, timestamp: h.Timestamp,
+  }));
+}
+
+async function importUsageHistoryCsvBatch(rows) {
+  return importCardUsageHistoryBatch(rows);
 }
 
 onMounted(fetchData);

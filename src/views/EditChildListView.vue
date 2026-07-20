@@ -71,11 +71,29 @@
       </div>
 
       <!-- リスト見出し -->
-      <div class="d-flex justify-content-between align-items-center mb-2">
+      <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
         <h5 class="mb-0">表示中の枚数：{{ rows.length }}枚</h5>
         <button class="btn btn-success btn-sm" @click="openCreate">
           <i class="fas fa-plus-circle"></i> 新規作成
         </button>
+      </div>
+
+      <div class="mb-3">
+        <CsvImportExportPanel
+          title="子カード情報"
+          :columns="CSV_COLUMNS"
+          :legacy-columns="CSV_COLUMNS"
+          :has-legacy-format="true"
+          :has-delete-sync-option="true"
+          format-template-filename="子カード情報CSVフォーマット.csv"
+          export-filename="子カード情報.csv"
+          :export-rows="exportCsvRows"
+          :import-batch="importCsvBatch"
+          :delete-missing-rows="deleteMissingCsvRows"
+          :extract-existing-keys="() => rows.map(r => `${r.card_no}-${r.child_no}`)"
+          :extract-csv-key="row => `${row.card_no}-${row.child_no}`"
+          @imported="fetchList"
+        />
       </div>
 
       <!-- 子カード一覧 -->
@@ -320,7 +338,10 @@ import {
   getCardNoOptions,
   upsertChildList,
   deleteChildList,
+  importChildListBatch,
+  deleteChildListBatch,
 } from "@/services/api.js";
+import CsvImportExportPanel from "@/components/CsvImportExportPanel.vue";
 
 const router    = useRouter();
 const authStore = useAuthStore();
@@ -428,6 +449,60 @@ async function fetchCardNoOptions() {
   } catch (e) {
     console.error(e);
   }
+}
+
+// ---- CSVインポート／エクスポート ----
+// rows.value はSupabase child_listテーブルの全列をそのまま保持しているため、
+// 列名の変換なしにそのままCSVの列として使える
+// （現アプリ用・旧アプリ用とも列名は同一。旧アプリ用は日付表記とarrenger/ministerの
+// 氏名/ID表記のみが異なり、csvImportService.js側で変換する）
+const CSV_COLUMNS = [
+  "id", "card_no", "child_no", "block", "houses", "pdf", "kml", "lng", "lat",
+  "term", "status", "group", "arrenger", "minister", "start_date", "limit_date",
+  "checkout_date", "return_date", "next_available_date", "renew", "overdue", "lost",
+  "description", "child_attach1", "child_attach2", "child_attach3", "timestamp",
+  "operator", "parent_status", "bad_flag", "bad_comment", "bad_timestamp", "bad_operator",
+  "bad_detail", "home", "bussiness", "autolock", "tel_enabled", "ng_count", "unchecked_ng",
+  "visited", "younger_gen", "child_classify", "flag1", "flag2", "nickname_flag",
+  "nickname", "user_memo",
+];
+
+function toLegacyDateString(isoDate) {
+  if (!isoDate) return "";
+  const d = new Date(isoDate);
+  return Number.isNaN(d.getTime()) ? "" : d.toString();
+}
+
+const DATE_FIELDS = ["term", "start_date", "limit_date", "checkout_date", "return_date", "next_available_date", "timestamp", "bad_timestamp"];
+
+function exportCsvRows(format) {
+  const legacy = format === "legacy";
+  return rows.value.map(r => {
+    const out = {};
+    for (const col of CSV_COLUMNS) out[col] = r[col];
+    if (legacy) {
+      for (const f of DATE_FIELDS) out[f] = toLegacyDateString(r[f]);
+      out.arrenger = r.arrenger ? userName(r.arrenger) : "";
+      out.minister = r.minister ? userName(r.minister) : "";
+    }
+    return out;
+  });
+}
+
+async function importCsvBatch(csvRows, { format }) {
+  const existingByKey = new Map(rows.value.map(r => [`${r.card_no}-${r.child_no}`, r.id]));
+  const withId = csvRows.map(row => {
+    const id = existingByKey.get(`${row.card_no}-${row.child_no}`);
+    return id != null ? { ...row, id } : row;
+  });
+  return importChildListBatch(withId, format);
+}
+
+async function deleteMissingCsvRows(missingKeys) {
+  const byKey = new Map(rows.value.map(r => [`${r.card_no}-${r.child_no}`, r.id]));
+  const ids = missingKeys.map(k => byKey.get(k)).filter(Boolean);
+  const res = await deleteChildListBatch(ids);
+  return res.deletedCount ?? 0;
 }
 
 function openCreate() {

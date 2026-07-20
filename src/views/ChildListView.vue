@@ -67,6 +67,17 @@
       </div>
     </div>
 
+    <div class="d-flex justify-content-end mb-3">
+      <CsvImportExportPanel
+        title="子カード使用履歴"
+        :columns="USAGE_HISTORY_CSV_COLUMNS"
+        format-template-filename="子カード使用履歴CSVフォーマット.csv"
+        export-filename="子カード使用履歴.csv"
+        :export-rows="exportUsageHistoryCsvRows"
+        :import-batch="importUsageHistoryCsvBatch"
+      />
+    </div>
+
     <!-- 一括貸出・返却ツールバー -->
     <div class="d-flex flex-wrap gap-2 align-items-center mb-2" v-if="canAssign">
       <button class="btn btn-outline-warning btn-sm" :disabled="selectedChildIds.length === 0" @click="openBulkCheckoutModal">
@@ -328,7 +339,9 @@ import { GROUP_VIEWS, setLastGroupView } from "@/services/groupViewPreference.js
 import {
   getGroupChildList, getMinisterOptions, assignChildMinister,
   returnChildCard, cancelChildCheckout, getChildUsageHistory,
+  getAllChildUsageHistory, importChildUsageHistoryBatch,
 } from "@/services/api.js";
+import CsvImportExportPanel from "@/components/CsvImportExportPanel.vue";
 
 const router    = useRouter();
 const authStore = useAuthStore();
@@ -723,6 +736,27 @@ async function bulkReturn() {
 
   selectedChildIds.value = [];
   if (failedCount > 0) alert(`${failedCount}件の返却に失敗しました。`);
+}
+
+// ---- CSVインポート／エクスポート（子カード使用履歴, #5-2） ----
+// 使用履歴は貸出サイクルごとの記録を積み上げていく履歴データのため、
+// CSVインポートは常に追加（INSERT）のみで、更新・削除は行わない。
+const USAGE_HISTORY_CSV_COLUMNS = [
+  "id", "card_no", "child_no", "status", "minister",
+  "checkout_date", "limit_date", "return_date", "description", "operator", "timestamp",
+];
+
+async function exportUsageHistoryCsvRows() {
+  const res = await getAllChildUsageHistory();
+  return (res.history || []).map(h => ({
+    id: h.ID, card_no: h.CardNo, child_no: h.ChildNo, status: h.Status, minister: h.Minister,
+    checkout_date: h.CheckoutDate, limit_date: h.LimitDate, return_date: h.ReturnDate,
+    description: h.Description, operator: h.Operator, timestamp: h.Timestamp,
+  }));
+}
+
+async function importUsageHistoryCsvBatch(rows) {
+  return importChildUsageHistoryBatch(rows);
 }
 
 onMounted(() => {

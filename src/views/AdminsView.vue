@@ -38,6 +38,9 @@
         <button class="btn alert-primary col-12 text-left mb-3" @click="router.push({ name: 'announcementApproval' })">
           <h5 class="mb-0"><i class="far fa-newspaper"></i> お知らせの掲載承認</h5>
         </button>
+        <button class="btn alert-secondary col-12 text-left mb-3" @click="router.push({ name: 'visitRecordCsv' })">
+          <h5 class="mb-0"><i class="fas fa-file-csv"></i> 訪問履歴のCSV入出力</h5>
+        </button>
       </div>
       <div class="col-sm-2"></div>
     </div>

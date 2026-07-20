@@ -68,8 +68,21 @@
         </div>
       </div>
 
-      <div class="mb-2">
+      <div class="mb-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
         <strong>件数：{{ filteredUsers.length }}件</strong>
+        <CsvImportExportPanel
+          title="ユーザーマスタ"
+          :columns="CSV_COLUMNS"
+          :has-delete-sync-option="true"
+          format-template-filename="ユーザーマスタCSVフォーマット.csv"
+          export-filename="ユーザーマスタ.csv"
+          :export-rows="exportCsvRows"
+          :import-batch="importCsvBatch"
+          :delete-missing-rows="deleteMissingCsvRows"
+          :extract-existing-keys="() => users.map(u => Number(u.ID))"
+          :extract-csv-key="row => Number(row.ID)"
+          @imported="fetchUsers"
+        />
       </div>
 
       <!-- ユーザー一覧テーブル -->
@@ -296,7 +309,11 @@
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/store/authStore.js";
-import { getUserMasterList, upsertUser, deleteUser, resetFirebaseUserPassword } from "@/services/api.js";
+import {
+  getUserMasterList, upsertUser, deleteUser, resetFirebaseUserPassword,
+  importUserMasterBatch, deleteUserMasterBatch,
+} from "@/services/api.js";
+import CsvImportExportPanel from "@/components/CsvImportExportPanel.vue";
 
 const router    = useRouter();
 const authStore = useAuthStore();
@@ -533,6 +550,36 @@ async function handleDelete(user) {
   } finally {
     loading.value = false;
   }
+}
+
+// ---- CSVインポート／エクスポート（ユーザーマスタ, #7） ----
+// InitialPassword列はCSV上にのみ存在し、Supabaseには保存しない。
+// 指定した行はWorker側のupsertUserと同じロジックでFirebase Authenticationアカウントを
+// 新規作成する（既存の「初期パスワード」機能と同じ仕様）。
+const CSV_COLUMNS = [
+  "ID", "UserID", "UserKana", "UserName", "BS", "Authority",
+  "Mail1FLG", "Mail1", "Mail2FLG", "Mail2", "Mail3FLG", "Mail3",
+  "Group", "Role", "Site", "StopFLG", "InitialPassword",
+];
+
+function exportCsvRows() {
+  return users.value.map(u => ({
+    ID: u.ID, UserID: u.UserID, UserKana: u.UserKana, UserName: u.UserName,
+    BS: u.BS, Authority: u.Authority,
+    Mail1FLG: u.Mail1FLG, Mail1: u.Mail1, Mail2FLG: u.Mail2FLG, Mail2: u.Mail2,
+    Mail3FLG: u.Mail3FLG, Mail3: u.Mail3,
+    Group: u.Group, Role: u.Role, Site: u.Site, StopFLG: u.StopFLG,
+    InitialPassword: "", // パスワードはSupabaseに保持しないため常に空欄
+  }));
+}
+
+async function importCsvBatch(rows) {
+  return importUserMasterBatch(rows);
+}
+
+async function deleteMissingCsvRows(missingIds) {
+  const res = await deleteUserMasterBatch(missingIds);
+  return res.deleted?.length ?? 0;
 }
 
 onMounted(() => {
