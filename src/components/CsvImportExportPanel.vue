@@ -166,14 +166,15 @@ const CANCELLED = Symbol("cancelled");
 
 // Cloudflare Workers（Freeプラン）のCPU時間・サブリクエスト数・リクエスト
 // サイズ等の制限は、いずれも即時解除（クールダウン無し）で次のリクエストは
-// 通常通り実行できる。エラー発生時は下記3段階でバッチサイズを縮小しながら
-// リトライし、成功後は縮小サイズのまま100件分投入できたら通常サイズへ復帰する。
+// 通常通り実行できる。エラー発生時は下記4段階でバッチサイズを縮小しながら
+// リトライし、成功後は縮小サイズのまま3000件投入できたら通常サイズへ復帰する。
 // 回数の上限は設けず、ユーザーがキャンセルするまで無限にリトライし続ける
 // （待機中もキャンセル可能）。
 function retryTier(retryCount) {
-  if (retryCount <= 10)  return { batchSize: props.batchSize,                          delayMs: 3000  };
-  if (retryCount <= 20)  return { batchSize: Math.max(1, Math.round(props.batchSize / 2)), delayMs: 6000  };
-  return                        { batchSize: Math.max(1, Math.round(props.batchSize / 4)), delayMs: 12000 };
+  if (retryCount <= 5)  return { batchSize: props.batchSize,                           delayMs: 3000  };
+  if (retryCount <= 10) return { batchSize: Math.max(1, Math.round(props.batchSize / 2)),  delayMs: 6000  };
+  if (retryCount <= 15) return { batchSize: Math.max(1, Math.round(props.batchSize / 4)),  delayMs: 12000 };
+  return                       { batchSize: Math.max(1, Math.round(props.batchSize / 10)), delayMs: 15000 };
 }
 
 function requestCancel() {
@@ -219,7 +220,7 @@ async function importAllWithAdaptiveRetry(opts, aggregate) {
 
       if (retryCount > 0) {
         recoveredCount += batch.length;
-        if (recoveredCount >= 100) {
+        if (recoveredCount >= 3000) {
           retryCount     = 0;
           recoveredCount = 0;
         }
