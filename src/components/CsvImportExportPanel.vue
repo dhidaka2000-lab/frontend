@@ -164,11 +164,12 @@ const cancelRequested = ref(false);
 
 const CANCELLED = Symbol("cancelled");
 
-// Cloudflare Workers（Freeプラン）のCPU時間/レート制限に一時的に抵触した
-// バッチ呼び出しを、間隔を空けてリトライする。回数の上限は設けず、
-// ユーザーがキャンセルするまで無限にリトライし続ける（待機中もキャンセル可能）。
-const BASE_DELAY_MS = 2000;
-const MAX_DELAY_MS  = 30000;
+// Cloudflare Workers（Freeプラン）のCPU時間・サブリクエスト数・リクエスト
+// サイズ等の制限は、いずれも即時解除（クールダウン無し）で次のリクエストは
+// 通常通り実行できる。そのため短い間隔で素早くリトライする。回数の上限は
+// 設けず、ユーザーがキャンセルするまで無限にリトライし続ける（待機中もキャンセル可能）。
+const BASE_DELAY_MS = 1000;
+const MAX_DELAY_MS  = 3000;
 
 function requestCancel() {
   cancelRequested.value = true;
