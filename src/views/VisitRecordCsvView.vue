@@ -47,7 +47,7 @@
         format-template-filename="訪問履歴CSVフォーマット.csv"
         export-filename="訪問履歴.csv"
         :export-rows="exportCsvRows"
-        :export-filters="() => filters"
+        :export-filters="getExportFilters"
         :import-batch="importCsvBatch"
         @imported="resetList"
       />
@@ -256,6 +256,13 @@ const IMPORT_MODES = [
 ];
 
 const EXPORT_PAGE_SIZE = 1000;
+
+// テンプレート内はscript setupのref/computedが自動アンラップされるため、
+// 名前付き関数として切り出し、通常のscript setupコードから明示的に
+// .valueでアクセスする（DetailCsvView.vueと同じ理由）。
+function getExportFilters() {
+  return filters.value;
+}
 
 // importTarget指定時、実際のエクスポートはジョブ方式（CsvImportExportPanel側）を
 // 使うため、この関数はプロップの都合上残しているだけで呼ばれない

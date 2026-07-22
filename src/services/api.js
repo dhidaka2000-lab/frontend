@@ -534,8 +534,11 @@ export async function deleteChildListBatch(ids) {
 export async function getAllCardUsageHistory() {
   return callWorker({ funcName: "getAllCardUsageHistory" });
 }
-export async function importCardUsageHistoryBatch(rows) {
-  return callWorker({ funcName: "importCardUsageHistoryBatch", rows });
+export async function importCardUsageHistoryBatch(rows, format) {
+  return callWorker({ funcName: "importCardUsageHistoryBatch", rows, format });
+}
+export async function getCardUsageHistoryExportPage(filters, afterId, limit) {
+  return callWorker({ funcName: "getCardUsageHistoryExportPage", filters, afterId, limit });
 }
 
 export async function getAllChildUsageHistory() {
@@ -543,6 +546,9 @@ export async function getAllChildUsageHistory() {
 }
 export async function importChildUsageHistoryBatch(rows) {
   return callWorker({ funcName: "importChildUsageHistoryBatch", rows });
+}
+export async function getChildUsageHistoryExportPage(filters, afterId, limit) {
+  return callWorker({ funcName: "getChildUsageHistoryExportPage", filters, afterId, limit });
 }
 
 export async function getVisitRecordExportPage(filters, afterRowId, limit) {
