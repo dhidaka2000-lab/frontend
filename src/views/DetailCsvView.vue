@@ -43,6 +43,7 @@
         format-template-filename="住戸リストCSVフォーマット.csv"
         export-filename="住戸リスト.csv"
         :export-rows="exportCsvRows"
+        :export-filters="() => filters.value"
         :import-batch="importCsvBatch"
         @imported="resetList"
       />
