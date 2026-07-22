@@ -548,6 +548,9 @@ export async function importChildUsageHistoryBatch(rows) {
 export async function getVisitRecordExportPage(filters, afterRowId, limit) {
   return callWorker({ funcName: "getVisitRecordExportPage", filters, afterRowId, limit });
 }
+export async function getVisitRecordListPageOffset(filters, offset, limit) {
+  return callWorker({ funcName: "getVisitRecordListPageOffset", filters, offset, limit });
+}
 export async function importVisitRecordBatch(rows, format, mode) {
   return callWorker({ funcName: "importVisitRecordBatch", rows, format, mode });
 }
