@@ -37,6 +37,7 @@ export const useAuthStore = defineStore("auth", () => {
   const userGroup   = computed(() => userInfo.value?.group      ?? "");
   const userRole    = computed(() => userInfo.value?.role       ?? 0);
   const userId      = computed(() => userInfo.value?.uid        ?? null);
+  const mustResetPassword = computed(() => !!userInfo.value?.mustReset); // 仮パスワードのため変更が必要（#41）
 
   // ---- Actions ----
 
@@ -88,9 +89,16 @@ export const useAuthStore = defineStore("auth", () => {
     writeCachedUserInfo(info);
   }
 
+  /** パスワード変更完了後、強制リセットフラグをローカルでも解除する（#41） */
+  function clearMustResetPassword() {
+    if (!userInfo.value) return;
+    userInfo.value = { ...userInfo.value, mustReset: false };
+    writeCachedUserInfo(userInfo.value);
+  }
+
   return {
     firebaseUser, userInfo, loading,
-    isLoggedIn, userName, userEmail, userGroup, userRole, userId,
-    init, logout, setUserInfo,
+    isLoggedIn, userName, userEmail, userGroup, userRole, userId, mustResetPassword,
+    init, logout, setUserInfo, clearMustResetPassword,
   };
 });

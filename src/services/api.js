@@ -320,6 +320,11 @@ export async function resetFirebaseUserPassword(targetEmail, newPassword) {
   return callWorker({ funcName: "resetFirebaseUserPassword", targetEmail, newPassword });
 }
 
+/** 自分自身のパスワード変更完了後、仮パスワードフラグを解除する（マイ設定、#41） */
+export async function clearMustResetFlag() {
+  return callWorker({ funcName: "clearMustResetFlag" });
+}
+
 /** ログイン画面のアクセスコード現在値を取得する（管理者のみ） */
 export async function getSiteAccessCode() {
   return callWorker({ funcName: "getSiteAccessCode" });

@@ -190,12 +190,14 @@
               <template v-if="editForm.BuildingSW === '建物マスタから選択'">
                 <div class="col-sm-12">
                   <label class="form-label">建物マスタ</label>
-                  <select class="form-select" v-model.number="editForm.BuildingNo" @change="onBuildingMasterChange">
-                    <option :value="null" disabled>-選択-</option>
-                    <option v-for="b in buildingMasterOptions" :key="b.BuildingNo" :value="b.BuildingNo">
-                      {{ b.BuildingNo }}：{{ b.BuildingName }}
-                    </option>
-                  </select>
+                  <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <button type="button" class="btn btn-outline-primary btn-sm" @click="showBuildingPicker = true">
+                      <i class="fas fa-building"></i> 建物マスタから選択
+                    </button>
+                    <span v-if="editForm.BuildingNo" class="small text-muted">
+                      選択中：{{ editForm.BuildingNo }}：{{ editForm.BuildingName }}
+                    </span>
+                  </div>
                 </div>
                 <div class="col-sm-4">
                   <label class="form-label">建物種別（この住戸自体の種別）</label>
@@ -478,12 +480,14 @@
                 <template v-if="bulkForm.building.BuildingSW === '建物マスタから選択'">
                   <div class="col-sm-12">
                     <label class="form-label">建物マスタ</label>
-                    <select class="form-select" v-model.number="bulkForm.building.BuildingNo" @change="onBulkBuildingMasterChange">
-                      <option :value="null" disabled>-選択-</option>
-                      <option v-for="b in buildingMasterOptions" :key="b.BuildingNo" :value="b.BuildingNo">
-                        {{ b.BuildingNo }}：{{ b.BuildingName }}
-                      </option>
-                    </select>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                      <button type="button" class="btn btn-outline-primary btn-sm" @click="showBulkBuildingPicker = true">
+                        <i class="fas fa-building"></i> 建物マスタから選択
+                      </button>
+                      <span v-if="bulkForm.building.BuildingNo" class="small text-muted">
+                        選択中：{{ bulkForm.building.BuildingNo }}：{{ bulkForm.building.BuildingName }}
+                      </span>
+                    </div>
                   </div>
                   <div class="col-sm-4">
                     <label class="form-label">建物種別（住戸自体の種別）</label>
@@ -717,6 +721,10 @@
     </div>
   </div>
 
+  <!-- 建物マスタ選択ダイアログ（#40） -->
+  <BuildingMasterPickerDialog v-model="showBuildingPicker" @select="onBuildingPicked" />
+  <BuildingMasterPickerDialog v-model="showBulkBuildingPicker" @select="onBulkBuildingPicked" />
+
 </template>
 
 <script setup>
@@ -726,6 +734,7 @@ import { useAuthStore } from "@/store/authStore.js";
 import { buildingIconClass } from "@/utils/buildingIcons.js";
 import { BUILD_KINDS } from "@/utils/buildingKinds.js";
 import { groupHousesByBuilding } from "@/utils/buildingGroups.js";
+import BuildingMasterPickerDialog from "@/components/BuildingMasterPickerDialog.vue";
 import { loadGoogleMaps, createMap, addMarker } from "@/services/maps.js";
 import { resolveMapCenter } from "@/services/mapCenter.js";
 import { buildCsv, downloadCsv, parseCsvWithHeader } from "@/utils/csv.js";
@@ -1008,17 +1017,20 @@ function onBulkBanchiChange() {
   }
 }
 
-function onBulkBuildingMasterChange() {
-  const b = buildingMasterOptions.value.find(b => b.BuildingNo === bulkForm.value.building.BuildingNo);
-  if (b) {
-    // 建物種別(#106)は建物マスタとは別物として扱う。一括編集フォームには
-    // 「既存の住戸の値」という概念が無い（毎回まっさらな指示を組み立てる）ため、
-    // 単純に建物マスタの種別を初期値として提案する（選択後は自由に変更できる）。
-    bulkForm.value.building.BuildingCategory = b.BuildingCategory;
-    bulkForm.value.building.BuildingName     = b.BuildingName;
-    bulkForm.value.building.Floors           = b.Floors;
-    bulkForm.value.building.Rooms            = b.Rooms;
-  }
+// 建物マスタ選択ダイアログ（#40）で選ばれた建物を一括編集フォームへ反映する
+const showBulkBuildingPicker = ref(false);
+function onBulkBuildingPicked(b) {
+  bulkForm.value.building.BuildingNo = b.BuildingNo;
+  // 建物種別(#106)は建物マスタとは別物として扱う。一括編集フォームには
+  // 「既存の住戸の値」という概念が無い（毎回まっさらな指示を組み立てる）ため、
+  // 単純に建物マスタの種別を初期値として提案する（選択後は自由に変更できる）。
+  bulkForm.value.building.BuildingCategory = b.BuildingCategory;
+  bulkForm.value.building.BuildingName     = b.BuildingName;
+  bulkForm.value.building.Floors           = b.Floors;
+  bulkForm.value.building.Rooms            = b.Rooms;
+  const idx = buildingMasterOptions.value.findIndex(x => x.BuildingNo === b.BuildingNo);
+  if (idx === -1) buildingMasterOptions.value.push(b);
+  else buildingMasterOptions.value[idx] = b;
 }
 
 // ---- 一括編集：地図で地点を指定 ----
@@ -1361,17 +1373,20 @@ async function ensureBuildingMasterLoaded() {
   }
 }
 
-function onBuildingMasterChange() {
-  const b = buildingMasterOptions.value.find(b => b.BuildingNo === editForm.value.BuildingNo);
-  if (b) {
-    // 建物種別(#106)は建物マスタとは別物として扱うため、住戸側が未設定のときの
-    // 初期値として提案するだけにとどめ、既に設定済みの値は上書きしない
-    // （マンション内の店舗・事務所などをそれぞれの種別のまま残せるようにする）。
-    if (!editForm.value.BuildingCategory) editForm.value.BuildingCategory = b.BuildingCategory;
-    editForm.value.BuildingName = b.BuildingName;
-    editForm.value.Floors       = b.Floors;
-    editForm.value.Rooms        = b.Rooms;
-  }
+// 建物マスタ選択ダイアログ（#40）で選ばれた建物を住戸編集フォームへ反映する
+const showBuildingPicker = ref(false);
+function onBuildingPicked(b) {
+  editForm.value.BuildingNo = b.BuildingNo;
+  // 建物種別(#106)は建物マスタとは別物として扱うため、住戸側が未設定のときの
+  // 初期値として提案するだけにとどめ、既に設定済みの値は上書きしない
+  // （マンション内の店舗・事務所などをそれぞれの種別のまま残せるようにする）。
+  if (!editForm.value.BuildingCategory) editForm.value.BuildingCategory = b.BuildingCategory;
+  editForm.value.BuildingName = b.BuildingName;
+  editForm.value.Floors       = b.Floors;
+  editForm.value.Rooms        = b.Rooms;
+  const idx = buildingMasterOptions.value.findIndex(x => x.BuildingNo === b.BuildingNo);
+  if (idx === -1) buildingMasterOptions.value.push(b);
+  else buildingMasterOptions.value[idx] = b;
 }
 
 // NGFlagが「可」→「不可」に変わった時点（新規のNG登録）に、記録日・記録者を自動セットする

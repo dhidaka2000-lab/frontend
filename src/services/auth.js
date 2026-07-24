@@ -10,6 +10,9 @@ import {
   signInWithCredential,
   signInWithCustomToken,
   GoogleAuthProvider,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword,
   signOut,
   onAuthStateChanged,
 } from "firebase/auth";
@@ -133,6 +136,21 @@ export async function loginWithCustomToken(token) {
 /** ログアウト */
 export async function logout() {
   return signOut(auth);
+}
+
+/**
+ * 現在ログイン中のユーザー自身のパスワードを変更する（マイ設定、#41）。
+ * メールアドレス＋パスワードで再認証してから変更するため、他人がセッションを
+ * 乗っ取っていても現在のパスワードを知らなければ変更できない。
+ * @param {string} currentPassword
+ * @param {string} newPassword
+ */
+export async function changeOwnPassword(currentPassword, newPassword) {
+  const user = auth.currentUser;
+  if (!user || !user.email) throw new Error("ログイン情報が確認できません。再度ログインしてください。");
+  const credential = EmailAuthProvider.credential(user.email, currentPassword);
+  await reauthenticateWithCredential(user, credential);
+  await updatePassword(user, newPassword);
 }
 
 /**

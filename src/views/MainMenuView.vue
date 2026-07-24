@@ -78,6 +78,14 @@
             <h6>管理者設定</h6>
           </button>
 
+          <button
+            class="btn btn-light col-12 mb-3 menu-button"
+            @click="router.push({ name: 'mySettings' })"
+          >
+            <i class="fas fa-2x fa-id-card"></i>
+            <h6>マイ設定</h6>
+          </button>
+
         </div>
       </div>
 

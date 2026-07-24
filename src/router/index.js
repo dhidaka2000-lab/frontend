@@ -159,6 +159,16 @@ const routes = [
     name:      "detailCsv",
     component: () => import("@/views/DetailCsvView.vue"),
   },
+  {
+    path:      "/settings/my-settings",
+    name:      "mySettings",
+    component: () => import("@/views/MySettingsView.vue"),
+  },
+  {
+    path:      "/settings/my-settings/change-password",
+    name:      "changePassword",
+    component: () => import("@/views/ChangePasswordView.vue"),
+  },
 ];
 
 const router = createRouter({
@@ -173,7 +183,13 @@ router.beforeEach((to) => {
   if (to.meta.public) return true;
 
   const auth = useAuthStore();
-  if (auth.isLoggedIn) return true;
+  if (auth.isLoggedIn) {
+    // 仮パスワードのユーザーは、パスワード変更が完了するまで他画面へ遷移できない（#41）
+    if (auth.mustResetPassword && to.name !== "changePassword") {
+      return { name: "changePassword" };
+    }
+    return true;
+  }
 
   // オフライン専用ページ等からの遷移で、ローカルに保存済みの子カードを開く場合は、
   // 現在の接続状態に関わらず（navigator.onLineが不正確な場合もあるため）常に許可する。
