@@ -28,7 +28,7 @@
     <!-- ユーザー情報 -->
     <div class="alert alert-secondary py-2 mb-3">
       <strong>{{ authStore.userName }}</strong>（{{ authStore.userEmail }}）
-      ／ グループ：{{ authStore.userGroup }} ／ 権限：{{ authStore.userRole }}
+      ／ グループ：{{ authStore.userGroup }}
     </div>
 
     <!-- オフラインキャッシュ利用中の案内 -->
@@ -149,7 +149,7 @@
           :class="{ 'card-returned': isReturned(child), 'card-overdue': !isReturned(child) && isOverdue(child) }"
           :style="{ borderLeft: `6px solid ${colorBg(child.COLOR)}` }"
         >
-          <div class="card-body">
+          <div class="card-body" role="button" @click="openChildMap(child)">
             <div class="d-flex justify-content-between align-items-start mb-1">
               <h5 class="card-title mb-0">
                 <span class="cardno-badge" :style="{ backgroundColor: colorBg(child.COLOR), borderColor: colorBg(child.COLOR) }">{{ child.CARDNO }}-{{ child.CHILDNO }}</span>
@@ -160,14 +160,14 @@
                   <button
                     v-if="!isReturned(child) && !usingOfflineData && !child.SHARED"
                     class="btn btn-sm btn-outline-danger"
-                    @click="returnCard(child)"
+                    @click.stop="returnCard(child)"
                   >
                     <i class="fas fa-undo"></i> 返却
                   </button>
                   <button
                     v-else-if="!isReturned(child) && !usingOfflineData"
                     class="btn btn-sm btn-outline-warning"
-                    @click="endShare(child)"
+                    @click.stop="endShare(child)"
                   >
                     <i class="fas fa-share-alt"></i> 共有終了
                   </button>
@@ -175,7 +175,7 @@
                     class="badge rounded-pill"
                     :class="{ 'pill-clickable': isReturned(child) && !child.SHARED }"
                     :style="statusPillStyle(child.CHILDSTATUS)"
-                    @click="isReturned(child) && !child.SHARED && cancelReturn(child)"
+                    @click.stop="isReturned(child) && !child.SHARED && cancelReturn(child)"
                   >
                     {{ child.CHILDSTATUS }}
                   </span>
@@ -183,7 +183,7 @@
                 <span
                   v-if="isOfflineChild(child)"
                   class="badge rounded-pill offline-pill pill-clickable"
-                  @click="openOfflineDialog(child)"
+                  @click.stop="openOfflineDialog(child)"
                 >
                   <i class="fas fa-plane"></i> オフライン中
                 </span>
@@ -215,13 +215,13 @@
                 <button
                   v-if="!isReturned(child) && !usingOfflineData && !isOfflineChild(child)"
                   class="btn btn-sm btn-outline-secondary"
-                  @click="enableOffline(child)"
+                  @click.stop="enableOffline(child)"
                 >
                   <i class="fas fa-cloud-download-alt"></i> オフラインで使用
                 </button>
                 <button
                   class="btn btn-sm btn-outline-primary"
-                  @click="openChildMap(child)"
+                  @click.stop="openChildMap(child)"
                 >
                   <i class="fas fa-map-marked-alt"></i> 開く
                 </button>
@@ -314,7 +314,10 @@ const sortOrder      = ref("asc");
 const areaOptions  = computed(() => [...new Set(childs.value.map(c => c.AREA).filter(Boolean))].sort());
 const colorOptions = computed(() => [...new Set(childs.value.map(c => c.COLOR).filter(Boolean))].sort());
 
+// 残件数（総件数-未訪問以外の件数）。バックエンドが返す実測値（REMAINING）を
+// 優先し、オフラインキャッシュ等で無い場合のみ従来の集計値VISITEDから概算する（#42）
 function remainingOf(child) {
+  if (child.REMAINING != null) return child.REMAINING;
   return (child.CHILDHOUSES ?? 0) - (child.VISITED ?? 0);
 }
 
@@ -642,6 +645,10 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.card-body[role="button"] {
+  cursor: pointer;
+}
+
 .loading {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
